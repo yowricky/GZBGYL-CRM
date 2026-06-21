@@ -47,14 +47,61 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void permissionIncludesMutableAuditColumns() {
+        List<String> columns = jdbcTemplate.queryForList("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'permission'
+                """, String.class);
+
+        assertThat(columns).contains("version", "updated_at", "updated_by");
+    }
+
+    @Test
+    void organizationPathIndexSupportsPrefixLookups() {
+        String definition = jdbcTemplate.queryForObject("""
+                SELECT indexdef
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND indexname = 'idx_organization_unit_path'
+                """, String.class);
+
+        assertThat(definition).contains("(path varchar_pattern_ops)");
+    }
+
+    @Test
+    void criticalForeignKeysUseExpectedTargetsAndDeleteActions() {
+        List<String> foreignKeys = jdbcTemplate.queryForList("""
+                SELECT constraint_record.conname || ':'
+                    || referenced_table.relname || ':'
+                    || constraint_record.confdeltype::text
+                FROM pg_constraint constraint_record
+                JOIN pg_class referenced_table
+                  ON referenced_table.oid = constraint_record.confrelid
+                WHERE constraint_record.connamespace = 'public'::regnamespace
+                  AND constraint_record.contype = 'f'
+                """, String.class);
+
+        assertThat(foreignKeys).contains(
+                "fk_organization_unit_parent:organization_unit:a",
+                "fk_app_user_organization_unit:organization_unit:a",
+                "fk_app_user_role_user:app_user:c",
+                "fk_app_user_role_role:role:c",
+                "fk_role_permission_role:role:c",
+                "fk_role_permission_permission:permission:c",
+                "fk_audit_log_actor:app_user:r");
+    }
+
+    @Test
     void foundationSchemaEnforcesCriticalRelationshipsAndLookupPaths() {
         List<String> constraints = jdbcTemplate.queryForList("""
                 SELECT conname
                 FROM pg_constraint
                 WHERE connamespace = 'public'::regnamespace
                 """, String.class);
-        List<String> indexes = jdbcTemplate.queryForList("""
-                SELECT indexname
+        List<String> indexDefinitions = jdbcTemplate.queryForList("""
+                SELECT indexdef
                 FROM pg_indexes
                 WHERE schemaname = 'public'
                 """, String.class);
@@ -71,9 +118,15 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
                 "fk_role_permission_role",
                 "fk_role_permission_permission",
                 "uk_attachment_storage_key");
-        assertThat(indexes).contains(
-                "idx_audit_log_aggregate",
-                "idx_audit_log_actor_created_at",
-                "idx_attachment_owner");
+        assertThat(indexDefinitions)
+                .anySatisfy(definition -> assertThat(definition)
+                        .contains("idx_audit_log_aggregate")
+                        .contains("(aggregate_type, aggregate_id, created_at DESC)"))
+                .anySatisfy(definition -> assertThat(definition)
+                        .contains("idx_audit_log_actor_created_at")
+                        .contains("(actor_id, created_at DESC)"))
+                .anySatisfy(definition -> assertThat(definition)
+                        .contains("idx_attachment_owner")
+                        .contains("(owner_type, owner_id)"));
     }
 }

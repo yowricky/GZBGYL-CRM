@@ -18,7 +18,8 @@ CREATE TABLE organization_unit (
 );
 
 CREATE INDEX idx_organization_unit_parent ON organization_unit (parent_id);
-CREATE INDEX idx_organization_unit_path ON organization_unit (path);
+CREATE INDEX idx_organization_unit_path
+    ON organization_unit (path varchar_pattern_ops);
 
 CREATE TABLE app_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -58,8 +59,11 @@ CREATE TABLE permission (
     code VARCHAR(150) NOT NULL,
     name VARCHAR(200) NOT NULL,
     description VARCHAR(1000),
+    version BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID,
     CONSTRAINT uk_permission_code UNIQUE (code)
 );
 
@@ -103,7 +107,7 @@ CREATE TABLE audit_log (
     reason VARCHAR(1000),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_audit_log_actor
-        FOREIGN KEY (actor_id) REFERENCES app_user (id) ON DELETE SET NULL
+        FOREIGN KEY (actor_id) REFERENCES app_user (id) ON DELETE RESTRICT
 );
 
 CREATE INDEX idx_audit_log_aggregate

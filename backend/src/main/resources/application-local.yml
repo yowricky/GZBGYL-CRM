@@ -7,6 +7,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:CHANGE-ME-UNSAFE-REDIS}
 
 server:
   servlet:
@@ -18,5 +19,5 @@ app:
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     bucket: ${MINIO_BUCKET:crm-attachments}
-    access-key: ${MINIO_ACCESS_KEY:crm-local-access}
-    secret-key: ${MINIO_SECRET_KEY:crm-local-secret}
+    access-key: ${MINIO_APP_ACCESS_KEY:crm-local-app}
+    secret-key: ${MINIO_APP_SECRET_KEY:CHANGE-ME-UNSAFE-MINIO-APP}
