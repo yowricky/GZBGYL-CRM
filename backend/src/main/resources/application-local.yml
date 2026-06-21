@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/crm}
+    username: ${POSTGRES_USER:crm}
+    password: ${POSTGRES_PASSWORD:local-crm-password}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+app:
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    bucket: ${MINIO_BUCKET:crm-attachments}
+    access-key: ${MINIO_ACCESS_KEY:crm-local-access}
+    secret-key: ${MINIO_SECRET_KEY:crm-local-secret}

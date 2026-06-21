@@ -1,12 +1,9 @@
 package com.gzbgyl.crm;
 
+import com.gzbgyl.crm.support.PostgresIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest(properties = {
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
-})
-class CrmApplicationTest {
+class CrmApplicationTest extends PostgresIntegrationTest {
 
     @Test
     void contextLoads() {
