@@ -33,6 +33,20 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void organizationUnitUsesContractedPathColumn() {
+        List<String> columns = jdbcTemplate.queryForList("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'organization_unit'
+                """, String.class);
+
+        assertThat(columns)
+                .contains("path")
+                .doesNotContain("materialized_path");
+    }
+
+    @Test
     void foundationSchemaEnforcesCriticalRelationshipsAndLookupPaths() {
         List<String> constraints = jdbcTemplate.queryForList("""
                 SELECT conname

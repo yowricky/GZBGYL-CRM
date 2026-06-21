@@ -5,7 +5,7 @@ CREATE TABLE organization_unit (
     parent_id UUID,
     name VARCHAR(200) NOT NULL,
     code VARCHAR(100) NOT NULL,
-    materialized_path VARCHAR(2000) NOT NULL,
+    path VARCHAR(2000) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     version BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -18,7 +18,7 @@ CREATE TABLE organization_unit (
 );
 
 CREATE INDEX idx_organization_unit_parent ON organization_unit (parent_id);
-CREATE INDEX idx_organization_unit_path ON organization_unit (materialized_path);
+CREATE INDEX idx_organization_unit_path ON organization_unit (path);
 
 CREATE TABLE app_user (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
