@@ -8,6 +8,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.Hibernate;
 
 @MappedSuperclass
 public abstract class BaseEntity {
@@ -66,5 +67,22 @@ public abstract class BaseEntity {
 
     public UUID getUpdatedBy() {
         return updatedBy;
+    }
+
+    @Override
+    public final boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || Hibernate.getClass(this) != Hibernate.getClass(other)) {
+            return false;
+        }
+        BaseEntity that = (BaseEntity) other;
+        return id.equals(that.id);
+    }
+
+    @Override
+    public final int hashCode() {
+        return id.hashCode();
     }
 }

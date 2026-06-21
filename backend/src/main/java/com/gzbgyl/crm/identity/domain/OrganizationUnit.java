@@ -64,10 +64,6 @@ public class OrganizationUnit extends BaseEntity {
         this.path = newPath;
     }
 
-    public void replacePathPrefix(String oldPrefix, String newPrefix) {
-        this.path = newPrefix + path.substring(oldPrefix.length());
-    }
-
     public void deactivate() {
         this.active = false;
     }
