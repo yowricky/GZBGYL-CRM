@@ -12,6 +12,7 @@ import com.gzbgyl.crm.identity.application.UserSummary;
 import com.gzbgyl.crm.identity.domain.AppUser;
 import com.gzbgyl.crm.identity.persistence.AppUserRepository;
 import com.gzbgyl.crm.support.PostgresIntegrationTest;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -52,23 +53,34 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void migrationSeedsExactlyEightRolesAndCoreMappings() {
+    void migrationSeedsExactRolesPermissionsAndMappings() {
         assertThat(jdbcTemplate.queryForList("select code from role order by code", String.class))
                 .containsExactly("EXECUTIVE_VIEWER", "FINANCE_VIEWER", "OPERATIONS_VIEWER",
                         "PRESALES_TECH", "PROJECT_MANAGER", "SALES", "SALES_MANAGER", "SYSTEM_ADMIN");
         assertThat(jdbcTemplate.queryForList("select code from permission", String.class))
-                .contains("system:admin", "opportunity:read:own", "opportunity:read:department",
+                .containsExactlyInAnyOrder(
+                        "system:admin", "opportunity:read:own", "opportunity:read:department",
                         "opportunity:read:assigned", "opportunity:technical:update",
                         "lead:assign:department", "project:read:assigned",
                         "performance:read:authorized", "performance:read:company",
                         "contract:read:authorized", "payment:read:authorized");
-        assertThat(permissionCodes("SYSTEM_ADMIN")).containsExactly("system:admin");
-        assertThat(permissionCodes("SALES"))
-                .contains("opportunity:read:own", "opportunity:read:assigned");
-        assertThat(permissionCodes("SALES_MANAGER"))
-                .contains("opportunity:read:department", "lead:assign:department");
-        assertThat(permissionCodes("PRESALES_TECH"))
-                .contains("opportunity:technical:update");
+
+        Map<String, Set<String>> expectedMappings = Map.of(
+                "SYSTEM_ADMIN", Set.of("system:admin"),
+                "SALES", Set.of("opportunity:read:own", "opportunity:read:assigned",
+                        "contract:read:authorized", "payment:read:authorized"),
+                "SALES_MANAGER", Set.of("opportunity:read:department", "lead:assign:department",
+                        "performance:read:authorized", "contract:read:authorized",
+                        "payment:read:authorized"),
+                "PRESALES_TECH", Set.of("opportunity:read:assigned", "opportunity:technical:update"),
+                "PROJECT_MANAGER", Set.of("opportunity:read:assigned", "project:read:assigned"),
+                "OPERATIONS_VIEWER", Set.of("opportunity:read:assigned", "project:read:assigned"),
+                "FINANCE_VIEWER", Set.of("performance:read:authorized", "contract:read:authorized",
+                        "payment:read:authorized"),
+                "EXECUTIVE_VIEWER", Set.of("performance:read:company", "contract:read:authorized",
+                        "payment:read:authorized"));
+        expectedMappings.forEach((role, permissions) ->
+                assertThat(permissionCodes(role)).as(role).isEqualTo(permissions));
     }
 
     @Test
