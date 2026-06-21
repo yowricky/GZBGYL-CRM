@@ -1,18 +1,14 @@
 package com.gzbgyl.crm;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.core.annotation.AnnotatedElementUtils;
+import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+@SpringBootTest(properties = {
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration"
+})
 class CrmApplicationTest {
 
     @Test
-    void applicationIsConfiguredAsSpringBootApplication() {
-        assertThat(AnnotatedElementUtils.hasAnnotation(
-                CrmApplication.class,
-                SpringBootApplication.class
-        )).isTrue();
+    void contextLoads() {
     }
 }
