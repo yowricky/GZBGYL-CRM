@@ -6,8 +6,8 @@ import com.gzbgyl.crm.identity.domain.Role;
 import com.gzbgyl.crm.identity.persistence.AppUserRepository;
 import com.gzbgyl.crm.identity.persistence.OrganizationUnitRepository;
 import com.gzbgyl.crm.identity.persistence.RoleRepository;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
@@ -50,6 +50,7 @@ public class UserAdministrationService {
         if (organizationId == null) {
             throw new IllegalArgumentException("组织不存在");
         }
+        organizationRepository.acquireHierarchyMutationLock();
         var organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("组织不存在"));
         if (!organization.isActive()) {
@@ -89,9 +90,10 @@ public class UserAdministrationService {
 
     @Transactional
     public UserSummary resetPassword(UUID id, String password, long expectedVersion) {
+        String validatedPassword = validPassword(password);
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
-        user.resetPassword(passwordEncoder.encode(validPassword(password)));
+        user.resetPassword(passwordEncoder.encode(validatedPassword));
         return flushAndSummarize(user);
     }
 
@@ -133,7 +135,9 @@ public class UserAdministrationService {
     private UserSummary flushAndSummarize(AppUser user) {
         try {
             userRepository.flush();
-            return toSummary(user);
+            AppUser detailed = userRepository.findDetailedById(user.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+            return toSummary(detailed);
         } catch (OptimisticLockingFailureException exception) {
             throw new IdentityConflictException(CONFLICT);
         }
@@ -185,6 +189,9 @@ public class UserAdministrationService {
         }
         if (password.length() < 12) {
             throw new IllegalArgumentException("密码长度不能少于12个字符");
+        }
+        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new IllegalArgumentException("密码UTF-8编码不能超过72字节");
         }
         return password;
     }

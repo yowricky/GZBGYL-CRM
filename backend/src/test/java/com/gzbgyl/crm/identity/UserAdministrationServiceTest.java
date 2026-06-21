@@ -12,6 +12,9 @@ import com.gzbgyl.crm.identity.application.UserSummary;
 import com.gzbgyl.crm.identity.domain.AppUser;
 import com.gzbgyl.crm.identity.persistence.AppUserRepository;
 import com.gzbgyl.crm.support.PostgresIntegrationTest;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -23,10 +26,14 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import javax.sql.DataSource;
 
 class UserAdministrationServiceTest extends PostgresIntegrationTest {
 
@@ -44,6 +51,9 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private DataSource dataSource;
 
     @BeforeEach
     void cleanUsersAndOrganizations() {
@@ -84,6 +94,29 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void migrationRerunRestoresSystemOwnedSeedMetadata() {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcTemplate.update("update permission set name = 'Changed', description = 'Changed' "
+                    + "where code = 'system:admin'");
+            jdbcTemplate.update("update role set name = 'Changed', system_role = false "
+                    + "where code = 'SYSTEM_ADMIN'");
+
+            ScriptUtils.executeSqlScript(DataSourceUtils.getConnection(dataSource),
+                    new ClassPathResource("db/migration/V2__seed_identity_roles_permissions.sql"));
+
+            assertThat(jdbcTemplate.queryForMap(
+                    "select name, description from permission where code = 'system:admin'"))
+                    .containsEntry("name", "System administration")
+                    .containsEntry("description", "Full system administration");
+            assertThat(jdbcTemplate.queryForMap(
+                    "select name, system_role from role where code = 'SYSTEM_ADMIN'"))
+                    .containsEntry("name", "System Administrator")
+                    .containsEntry("system_role", true);
+            status.setRollbackOnly();
+        });
+    }
+
+    @Test
     void createsUserWithBcryptHashRolesAndEffectivePermissions() {
         OrganizationNode organization = organizationService.createRoot("SALES", "Sales");
 
@@ -103,6 +136,22 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
                 .doesNotContain("correct horse battery");
         assertThat(new BCryptPasswordEncoder(12).matches("correct horse battery", persisted.getPasswordHash())).isTrue();
         assertThat(created.toString()).doesNotContain(persisted.getPasswordHash());
+    }
+
+    @Test
+    void detailedRepositoryQueryFetchesRolesAndPermissions() {
+        OrganizationNode organization = organizationService.createRoot("ORG", "Organization");
+        UserSummary created = service.createUser(command(
+                "alice", organization.id(), Set.of("SALES", "PRESALES_TECH")));
+
+        AppUser detached = new TransactionTemplate(transactionManager).execute(
+                status -> userRepository.findDetailedById(created.id()).orElseThrow());
+
+        assertThat(detached.getRoles()).extracting(role -> role.getCode())
+                .containsExactlyInAnyOrder("SALES", "PRESALES_TECH");
+        assertThat(detached.getRoles()).flatExtracting(role -> role.getPermissions())
+                .extracting(permission -> permission.getCode())
+                .contains("opportunity:read:own", "opportunity:technical:update");
     }
 
     @Test
@@ -169,6 +218,44 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void serializesUserCreationWithOrganizationDeactivation() throws Exception {
+        OrganizationNode organization = organizationService.createRoot("ORG", "Organization");
+        CountDownLatch deactivationFlushed = new CountDownLatch(1);
+        CountDownLatch releaseDeactivation = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<OrganizationNode> deactivation = executor.submit(() ->
+                    new TransactionTemplate(transactionManager).execute(status -> {
+                        OrganizationNode result = organizationService.deactivate(
+                                organization.id(), organization.version());
+                        deactivationFlushed.countDown();
+                        await(releaseDeactivation);
+                        return result;
+                    }));
+            assertThat(deactivationFlushed.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<Throwable> creation = executor.submit(() -> {
+                try {
+                    service.createUser(command("alice", organization.id(), Set.of("SALES")));
+                    return null;
+                } catch (Throwable failure) {
+                    return failure;
+                }
+            });
+            awaitCreationBlocked(creation);
+            releaseDeactivation.countDown();
+
+            assertThat(deactivation.get().active()).isFalse();
+            assertThat(creation.get()).isInstanceOf(IllegalStateException.class)
+                    .hasMessage("组织已停用");
+            assertThat(userRepository.count()).isZero();
+        } finally {
+            releaseDeactivation.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void activatesDeactivatesResetsPasswordAndReplacesRolesWithVersionChecks() {
         OrganizationNode organization = organizationService.createRoot("ORG", "Organization");
         UserSummary created = service.createUser(command("alice", organization.id(), Set.of("SALES")));
@@ -195,6 +282,49 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void concurrentPasswordResetsTranslateFlushTimeConflict() throws Exception {
+        OrganizationNode organization = organizationService.createRoot("ORG", "Organization");
+        UserSummary created = service.createUser(command("alice", organization.id(), Set.of("SALES")));
+        CountDownLatch rowLocked = new CountDownLatch(1);
+        CountDownLatch releaseRowLock = new CountDownLatch(1);
+        CountDownLatch startResets = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> lockHolder = executor.submit(() -> new TransactionTemplate(transactionManager)
+                    .executeWithoutResult(status -> {
+                        jdbcTemplate.queryForObject(
+                                "select id from app_user where id = ? for update",
+                                UUID.class, created.id());
+                        rowLocked.countDown();
+                        await(releaseRowLock);
+                    }));
+            assertThat(rowLocked.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<Throwable> first = executor.submit(() -> attemptPasswordReset(
+                    startResets, created, "first replacement"));
+            Future<Throwable> second = executor.submit(() -> attemptPasswordReset(
+                    startResets, created, "second replacement"));
+            startResets.countDown();
+            awaitBlockedDatabaseLocks(2);
+            releaseRowLock.countDown();
+
+            lockHolder.get();
+            List<Throwable> outcomes = Arrays.asList(first.get(), second.get());
+            assertThat(outcomes).filteredOn(java.util.Objects::isNull).hasSize(1);
+            assertThat(outcomes).filteredOn(java.util.Objects::nonNull)
+                    .singleElement()
+                    .satisfies(failure -> assertThat(failure)
+                            .isInstanceOf(IdentityConflictException.class)
+                            .hasMessage("用户已被其他用户修改，请刷新后重试"));
+            assertThat(userRepository.findById(created.id()).orElseThrow().getVersion())
+                    .isEqualTo(created.version() + 1);
+        } finally {
+            releaseRowLock.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void validatesInputBeforePersistence() {
         OrganizationNode organization = organizationService.createRoot("ORG", "Organization");
         assertThatThrownBy(() -> service.createUser(command(" ", organization.id(), Set.of("SALES"))))
@@ -210,6 +340,38 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
         assertThatThrownBy(() -> service.createUser(new CreateUserCommand(
                 "alice", "Alice", "short", organization.id(), Set.of("SALES"))))
                 .isInstanceOf(IllegalArgumentException.class).hasMessage("密码长度不能少于12个字符");
+    }
+
+    @Test
+    void validatesBcryptUtf8ByteBoundaryForCreateAndReset() {
+        OrganizationNode organization = organizationService.createRoot("ORG", "Organization");
+        String asciiBoundary = "a".repeat(72);
+        String asciiTooLong = "a".repeat(73);
+        String multibyteTooLong = "密".repeat(25);
+        assertThat(asciiBoundary.getBytes(StandardCharsets.UTF_8)).hasSize(72);
+        assertThat(multibyteTooLong).hasSize(25);
+        assertThat(multibyteTooLong.getBytes(StandardCharsets.UTF_8)).hasSize(75);
+
+        UserSummary created = service.createUser(new CreateUserCommand(
+                "boundary", "Boundary", asciiBoundary, organization.id(), Set.of("SALES")));
+        assertThat(new BCryptPasswordEncoder(12).matches(asciiBoundary,
+                userRepository.findById(created.id()).orElseThrow().getPasswordHash())).isTrue();
+
+        assertThatThrownBy(() -> service.createUser(new CreateUserCommand(
+                "ascii-long", "ASCII Long", asciiTooLong, organization.id(), Set.of("SALES"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("密码UTF-8编码不能超过72字节");
+        assertThatThrownBy(() -> service.createUser(new CreateUserCommand(
+                "multibyte-long", "Multibyte Long", multibyteTooLong,
+                organization.id(), Set.of("SALES"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("密码UTF-8编码不能超过72字节");
+        assertThatThrownBy(() -> service.resetPassword(created.id(), asciiTooLong, created.version()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("密码UTF-8编码不能超过72字节");
+        assertThatThrownBy(() -> service.resetPassword(created.id(), multibyteTooLong, created.version()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("密码UTF-8编码不能超过72字节");
     }
 
     private CreateUserCommand command(String username, UUID organizationId, Set<String> roles) {
@@ -236,6 +398,47 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
             Thread.sleep(20);
         }
         throw new AssertionError("Timed out waiting for PostgreSQL uniqueness lock");
+    }
+
+    private void awaitCreationBlocked(Future<?> creation) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            if (creation.isDone()) {
+                throw new AssertionError(
+                        "User creation completed while organization deactivation was uncommitted");
+            }
+            Integer blocked = jdbcTemplate.queryForObject(
+                    "select count(*) from pg_locks where not granted", Integer.class);
+            if (blocked != null && blocked > 0) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("Timed out waiting for user creation to block");
+    }
+
+    private void awaitBlockedDatabaseLocks(int expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            Integer blocked = jdbcTemplate.queryForObject(
+                    "select count(*) from pg_locks where not granted", Integer.class);
+            if (blocked != null && blocked >= expected) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("Timed out waiting for blocked PostgreSQL transactions");
+    }
+
+    private Throwable attemptPasswordReset(
+            CountDownLatch start, UserSummary user, String password) throws InterruptedException {
+        start.await();
+        try {
+            service.resetPassword(user.id(), password, user.version());
+            return null;
+        } catch (Throwable failure) {
+            return failure;
+        }
     }
 
     private void await(CountDownLatch latch) {

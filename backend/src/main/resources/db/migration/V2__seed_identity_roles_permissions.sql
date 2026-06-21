@@ -10,7 +10,9 @@ INSERT INTO permission (id, code, name, description) VALUES
 ('10000000-0000-0000-0000-000000000009', 'performance:read:company', 'Read company performance', NULL),
 ('10000000-0000-0000-0000-000000000010', 'contract:read:authorized', 'Read authorized contracts', NULL),
 ('10000000-0000-0000-0000-000000000011', 'payment:read:authorized', 'Read authorized payments', NULL)
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description;
 
 INSERT INTO role (id, code, name, system_role) VALUES
 ('20000000-0000-0000-0000-000000000001', 'SALES', 'Sales', TRUE),
@@ -21,7 +23,9 @@ INSERT INTO role (id, code, name, system_role) VALUES
 ('20000000-0000-0000-0000-000000000006', 'FINANCE_VIEWER', 'Finance Viewer', TRUE),
 ('20000000-0000-0000-0000-000000000007', 'EXECUTIVE_VIEWER', 'Executive Viewer', TRUE),
 ('20000000-0000-0000-0000-000000000008', 'SYSTEM_ADMIN', 'System Administrator', TRUE)
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO UPDATE SET
+    name = EXCLUDED.name,
+    system_role = EXCLUDED.system_role;
 
 INSERT INTO role_permission (role_id, permission_id)
 SELECT r.id, p.id FROM (VALUES
