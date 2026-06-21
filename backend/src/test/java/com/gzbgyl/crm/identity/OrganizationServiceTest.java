@@ -16,6 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
@@ -169,6 +170,53 @@ class OrganizationServiceTest extends PostgresIntegrationTest {
                 .hasMessage("组织已被其他用户修改，请刷新后重试");
         assertThat(repository.findById(root.id()).orElseThrow().getName()).isEqualTo("Fresh");
         assertThat(renamed.version()).isGreaterThan(root.version());
+    }
+
+    @RepeatedTest(5)
+    void concurrentRenamesReturnStableConflictForLoser() throws Exception {
+        OrganizationNode root = service.createRoot("ROOT", "Root");
+        CountDownLatch rowLocked = new CountDownLatch(1);
+        CountDownLatch releaseRowLock = new CountDownLatch(1);
+        CountDownLatch startRenames = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<?> lockHolder = executor.submit(() -> transactions.executeWithoutResult(status -> {
+                jdbcTemplate.queryForObject(
+                        "select id from organization_unit where id = ? for update",
+                        UUID.class,
+                        root.id());
+                rowLocked.countDown();
+                await(releaseRowLock);
+            }));
+            assertThat(rowLocked.await(5, TimeUnit.SECONDS)).isTrue();
+
+            Future<RenameOutcome> first = executor.submit(
+                    () -> attemptRename(startRenames, root, "First"));
+            Future<RenameOutcome> second = executor.submit(
+                    () -> attemptRename(startRenames, root, "Second"));
+            startRenames.countDown();
+            awaitBlockedDatabaseLocks(2);
+            releaseRowLock.countDown();
+
+            lockHolder.get();
+            List<RenameOutcome> outcomes = List.of(first.get(), second.get());
+            assertThat(outcomes).filteredOn(RenameOutcome::succeeded).hasSize(1);
+            assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded())
+                    .singleElement()
+                    .satisfies(outcome -> assertThat(outcome.failure())
+                            .isInstanceOf(OrganizationConflictException.class)
+                            .hasMessage("组织已被其他用户修改，请刷新后重试"));
+
+            OrganizationUnit persisted = repository.findById(root.id()).orElseThrow();
+            String successfulName = outcomes.stream()
+                    .filter(RenameOutcome::succeeded)
+                    .findFirst().orElseThrow().name();
+            assertThat(persisted.getName()).isEqualTo(successfulName);
+            assertThat(persisted.getVersion()).isEqualTo(root.version() + 1);
+        } finally {
+            releaseRowLock.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -330,6 +378,44 @@ class OrganizationServiceTest extends PostgresIntegrationTest {
             return true;
         } catch (IllegalArgumentException | OrganizationConflictException exception) {
             return false;
+        }
+    }
+
+    private RenameOutcome attemptRename(CountDownLatch start, OrganizationNode unit, String name)
+            throws InterruptedException {
+        start.await();
+        try {
+            return new RenameOutcome(service.rename(unit.id(), name, unit.version()).name(), null);
+        } catch (RuntimeException exception) {
+            return new RenameOutcome(null, exception);
+        }
+    }
+
+    private void awaitBlockedDatabaseLocks(int expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            Integer blocked = jdbcTemplate.queryForObject(
+                    "select count(*) from pg_locks where not granted", Integer.class);
+            if (blocked != null && blocked >= expected) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for blocked PostgreSQL transactions");
+    }
+
+    private void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private record RenameOutcome(String name, RuntimeException failure) {
+        boolean succeeded() {
+            return failure == null;
         }
     }
 }

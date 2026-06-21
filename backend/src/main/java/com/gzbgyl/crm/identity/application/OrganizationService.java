@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.UUID;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,7 +58,7 @@ public class OrganizationService {
         OrganizationUnit unit = existing(id);
         requireVersion(unit, expectedVersion);
         unit.rename(validName(name));
-        repository.flush();
+        flushMutation();
         return toNode(unit);
     }
 
@@ -83,7 +84,7 @@ public class OrganizationService {
             throw new IllegalArgumentException(PATH_TOO_LONG);
         }
         unit.moveTo(newParentId, newPrefix);
-        repository.flush();
+        flushMutation();
         repository.replaceDescendantPathPrefix(unit.getId(), oldPrefix, newPrefix);
         return toNode(unit);
     }
@@ -97,7 +98,7 @@ public class OrganizationService {
             throw new IllegalStateException(ACTIVE_DESCENDANT);
         }
         unit.deactivate();
-        repository.flush();
+        flushMutation();
         return toNode(unit);
     }
 
@@ -165,6 +166,14 @@ public class OrganizationService {
 
     private void requireVersion(OrganizationUnit unit, long expectedVersion) {
         if (unit.getVersion() != expectedVersion) {
+            throw new OrganizationConflictException(CONFLICT);
+        }
+    }
+
+    private void flushMutation() {
+        try {
+            repository.flush();
+        } catch (OptimisticLockingFailureException exception) {
             throw new OrganizationConflictException(CONFLICT);
         }
     }
