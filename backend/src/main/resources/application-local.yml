@@ -2,7 +2,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/crm}
     username: ${POSTGRES_USER:crm}
-    password: ${POSTGRES_PASSWORD:local-crm-password}
+    password: ${POSTGRES_PASSWORD:CHANGE-ME-UNSAFE-POSTGRES}
   data:
     redis:
       host: ${REDIS_HOST:localhost}

@@ -1,11 +1,14 @@
 package com.gzbgyl.crm;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.gzbgyl.crm.support.PostgresIntegrationTest;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
@@ -56,6 +59,22 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
                 """, String.class);
 
         assertThat(columns).contains("version", "updated_at", "updated_by");
+    }
+
+    @Test
+    void attachmentSha256AcceptsOnlyLowercaseHexDigest() {
+        String insert = """
+                INSERT INTO attachment (
+                    owner_type, owner_id, original_filename, content_type,
+                    size_bytes, sha256, storage_key
+                ) VALUES (?, gen_random_uuid(), 'contract.txt', 'text/plain', 1, ?, ?)
+                """;
+
+        assertThatNoException().isThrownBy(() -> jdbcTemplate.update(
+                insert, "contract", "a".repeat(64), "valid-digest-object"));
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                insert, "contract", "abc", "padded-invalid-digest-object"))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

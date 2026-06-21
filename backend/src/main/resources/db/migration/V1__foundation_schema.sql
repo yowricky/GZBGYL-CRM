@@ -122,7 +122,7 @@ CREATE TABLE attachment (
     original_filename VARCHAR(500) NOT NULL,
     content_type VARCHAR(255) NOT NULL,
     size_bytes BIGINT NOT NULL,
-    sha256 CHAR(64) NOT NULL,
+    sha256 VARCHAR(64) NOT NULL,
     storage_key VARCHAR(1000) NOT NULL,
     deleted BOOLEAN NOT NULL DEFAULT FALSE,
     deleted_at TIMESTAMPTZ,
@@ -133,6 +133,7 @@ CREATE TABLE attachment (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by UUID,
     CONSTRAINT ck_attachment_size_nonnegative CHECK (size_bytes >= 0),
+    CONSTRAINT ck_attachment_sha256_format CHECK (sha256 ~ '^[0-9a-f]{64}$'),
     CONSTRAINT uk_attachment_storage_key UNIQUE (storage_key)
 );
 
