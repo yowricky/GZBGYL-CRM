@@ -5,8 +5,8 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_MIGRATION_USER:?Set POSTGRES_MIGRATION_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:?Set POSTGRES_MIGRATION_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks: [private]
@@ -15,6 +15,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  postgres-init:
+    image: postgres:17-alpine
+    entrypoint: ["/bin/sh", "/scripts/init-runtime-role.sh"]
+    environment:
+      PGHOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_MIGRATION_USER:?Set POSTGRES_MIGRATION_USER}
+      PGPASSWORD: ${POSTGRES_MIGRATION_PASSWORD:?Set POSTGRES_MIGRATION_PASSWORD}
+      CRM_APP_PASSWORD: ${CRM_APP_PASSWORD:?Set CRM_APP_PASSWORD}
+    volumes:
+      - ./infra/postgres/init-runtime-role.sh:/scripts/init-runtime-role.sh:ro
+    networks: [private]
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   redis:
     image: redis:7.4-alpine
@@ -85,8 +101,9 @@ services:
       dockerfile: Dockerfile
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      CRM_APP_PASSWORD: ${CRM_APP_PASSWORD:?Set CRM_APP_PASSWORD}
+      POSTGRES_MIGRATION_USER: ${POSTGRES_MIGRATION_USER:?Set POSTGRES_MIGRATION_USER}
+      POSTGRES_MIGRATION_PASSWORD: ${POSTGRES_MIGRATION_PASSWORD:?Set POSTGRES_MIGRATION_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
@@ -106,6 +123,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio-init:

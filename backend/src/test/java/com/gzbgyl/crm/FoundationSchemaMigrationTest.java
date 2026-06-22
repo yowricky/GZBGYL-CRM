@@ -18,15 +18,67 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
 
     @Test
     void appliesSecurityScopePermissionMigration() {
-        assertThat(jdbcTemplate.queryForObject(
+        assertThat(migrationJdbc().queryForObject(
                 "select max(version) from flyway_schema_history where success", String.class))
-                .isEqualTo("4");
+                .isEqualTo("5");
         assertThat(jdbcTemplate.queryForList(
                 "select code from permission where code like 'financial:%' order by code",
                 String.class)).containsExactly(
                         "financial:read:company",
                         "financial:read:department",
                         "financial:read:own");
+    }
+
+    @Test
+    void runtimeUsesRestrictedApplicationRole() {
+        assertThat(jdbcTemplate.queryForObject("select current_user", String.class))
+                .isEqualTo("crm_app");
+        assertThat(jdbcTemplate.queryForObject(
+                "select has_schema_privilege(current_user, 'public', 'CREATE')", Boolean.class))
+                .isFalse();
+        assertThat(jdbcTemplate.queryForObject(
+                "select has_table_privilege(current_user, 'audit_log', 'SELECT,INSERT')", Boolean.class))
+                .isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "select has_table_privilege(current_user, 'audit_log', 'UPDATE,DELETE,TRUNCATE')", Boolean.class))
+                .isFalse();
+    }
+
+    @Test
+    void auditLogRejectsOwnerTruncateAndRuntimeDdlOrMutation() {
+        JdbcTemplate owner = migrationJdbc();
+
+        assertThatThrownBy(() -> owner.execute("truncate table audit_log"))
+                .rootCause().hasMessageContaining("audit_log is append-only");
+        assertThatThrownBy(() -> jdbcTemplate.execute("truncate table audit_log"))
+                .rootCause().hasMessageContaining("permission denied");
+        assertThatThrownBy(() -> jdbcTemplate.execute("alter table audit_log disable trigger all"))
+                .rootCause().hasMessageContaining("must be owner");
+        assertThatThrownBy(() -> jdbcTemplate.execute("drop table audit_log"))
+                .rootCause().hasMessageContaining("must be owner");
+        assertThatThrownBy(() -> jdbcTemplate.execute("create table forbidden_runtime_ddl(id integer)"))
+                .rootCause().hasMessageContaining("permission denied");
+    }
+
+    @Test
+    void auditLogHasPublicQueryIndexes() {
+        List<String> definitions = jdbcTemplate.queryForList("""
+                SELECT indexdef
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND tablename = 'audit_log'
+                """, String.class);
+
+        assertThat(definitions)
+                .anySatisfy(definition -> assertThat(definition)
+                        .contains("idx_audit_log_created_at")
+                        .contains("(created_at DESC, id DESC)"))
+                .anySatisfy(definition -> assertThat(definition)
+                        .contains("idx_audit_log_event_created_at")
+                        .contains("(event_type, created_at DESC)"))
+                .anySatisfy(definition -> assertThat(definition)
+                        .contains("idx_audit_log_type_created_at")
+                        .contains("(aggregate_type, created_at DESC)"));
     }
 
     @Test

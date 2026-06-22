@@ -3,14 +3,17 @@ spring:
     name: crm-backend
   datasource:
     url: ${DB_URL}
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    username: crm_app
+    password: ${CRM_APP_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: true
+    url: ${DB_URL}
+    user: ${POSTGRES_MIGRATION_USER}
+    password: ${POSTGRES_MIGRATION_PASSWORD}
   data:
     redis:
       host: ${REDIS_HOST}

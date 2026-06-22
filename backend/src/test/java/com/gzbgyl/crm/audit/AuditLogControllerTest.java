@@ -23,7 +23,6 @@ class AuditLogControllerTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        jdbc.execute("truncate table audit_log");
         aggregateId = UUID.randomUUID();
         jdbc.update("""
                 insert into audit_log(event_type, aggregate_type, aggregate_id, after_state, reason)

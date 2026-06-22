@@ -2,14 +2,12 @@ package com.gzbgyl.crm.audit.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gzbgyl.crm.audit.domain.AuditLog;
 import com.gzbgyl.crm.audit.persistence.AuditLogRepository;
 import com.gzbgyl.crm.shared.api.InvalidRequestException;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.time.Instant;
@@ -34,8 +32,8 @@ public class AuditService {
     @Transactional
     public AuditLog record(AuditCommand command) {
         validate(command);
-        JsonNode before = command.before() == null ? null : mapper.valueToTree(redact(command.before()));
-        JsonNode after = command.after() == null ? null : mapper.valueToTree(redact(command.after()));
+        JsonNode before = command.before() == null ? null : redact(mapper.valueToTree(command.before()));
+        JsonNode after = command.after() == null ? null : redact(mapper.valueToTree(command.after()));
         return repository.append(new AuditLog(command.actorId(), command.eventType(), command.aggregateType(),
                 command.aggregateId(), before, after, command.ipAddress(), command.reason()));
     }
@@ -74,27 +72,20 @@ public class AuditService {
         } catch (Exception ignored) { return false; }
     }
 
-    private static Object redact(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            Map<String, Object> copy = new LinkedHashMap<>();
-            map.forEach((key, nested) -> {
-                String name = String.valueOf(key);
-                copy.put(name, sensitive(name) ? "[REDACTED]" : redact(nested));
+    private static JsonNode redact(JsonNode node) {
+        if (node.isObject()) {
+            ObjectNode object = (ObjectNode) node;
+            object.properties().forEach(entry -> {
+                if (sensitive(entry.getKey())) {
+                    object.put(entry.getKey(), "[REDACTED]");
+                } else {
+                    redact(entry.getValue());
+                }
             });
-            return copy;
+        } else if (node.isArray()) {
+            node.forEach(AuditService::redact);
         }
-        if (value instanceof Iterable<?> iterable) {
-            List<Object> copy = new ArrayList<>();
-            iterable.forEach(item -> copy.add(redact(item)));
-            return copy;
-        }
-        if (value != null && value.getClass().isArray()) {
-            int length = java.lang.reflect.Array.getLength(value);
-            List<Object> copy = new ArrayList<>(length);
-            for (int i = 0; i < length; i++) copy.add(redact(java.lang.reflect.Array.get(value, i)));
-            return copy;
-        }
-        return value;
+        return node;
     }
 
     private static boolean sensitive(String key) {

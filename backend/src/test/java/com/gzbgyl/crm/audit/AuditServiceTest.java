@@ -14,7 +14,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,11 +23,6 @@ class AuditServiceTest extends PostgresIntegrationTest {
     @Autowired AuditService service;
     @Autowired AuditLogRepository repository;
     @Autowired JdbcTemplate jdbc;
-
-    @BeforeEach
-    void cleanAudit() {
-        jdbc.execute("truncate table audit_log");
-    }
 
     @Test
     void persistsStructuredJsonAndSystemMetadata() {
@@ -81,7 +75,22 @@ class AuditServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void redactsSensitiveFieldsInsideNestedObjectsWithoutMutatingCaller() {
+        Credentials credentials = new Credentials("visible", "raw-password");
+        AuditEnvelope envelope = new AuditEnvelope("safe", credentials);
+
+        AuditLog log = service.record(new AuditCommand(null, "USER_UPDATED", "USER",
+                UUID.randomUUID(), null, envelope, null, null));
+
+        assertThat(log.afterJson().at("/profile/passwordHash").asText())
+                .isEqualTo("[REDACTED]");
+        assertThat(log.afterJson().at("/profile/displayName").asText()).isEqualTo("visible");
+        assertThat(credentials.passwordHash()).isEqualTo("raw-password");
+    }
+
+    @Test
     void rejectsInvalidBoundsBeforeDatabaseAccess() {
+        long initialCount = repository.count();
         UUID id = UUID.randomUUID();
         assertThatThrownBy(() -> service.record(new AuditCommand(null, "bad event", "USER", id,
                 null, null, null, null))).isInstanceOf(IllegalArgumentException.class);
@@ -91,19 +100,25 @@ class AuditServiceTest extends PostgresIntegrationTest {
                 null, null, "not-an-ip", null))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.record(new AuditCommand(null, "USER_UPDATED", "USER", id,
                 null, null, null, "x".repeat(1001)))).isInstanceOf(IllegalArgumentException.class);
-        assertThat(repository.count()).isZero();
+        assertThat(repository.count()).isEqualTo(initialCount);
     }
 
     @Test
-    void databaseAllowsInsertButRejectsUpdateAndDeleteWithStableError() {
+    void runtimeAllowsInsertButRejectsUpdateDeleteAndTruncate() {
         UUID id = UUID.randomUUID();
         jdbc.update("insert into audit_log(id,event_type,aggregate_type,aggregate_id) values (?,?,?,?)",
                 id, "TEST_EVENT", "TEST", UUID.randomUUID());
 
         assertThatThrownBy(() -> jdbc.update("update audit_log set reason='changed' where id=?", id))
-                .rootCause().hasMessageContaining("audit_log is append-only");
+                .rootCause().hasMessageContaining("permission denied");
         assertThatThrownBy(() -> jdbc.update("delete from audit_log where id=?", id))
-                .rootCause().hasMessageContaining("audit_log is append-only");
-        assertThat(jdbc.queryForObject("select count(*) from audit_log", Integer.class)).isEqualTo(1);
+                .rootCause().hasMessageContaining("permission denied");
+        assertThatThrownBy(() -> jdbc.execute("truncate table audit_log"))
+                .rootCause().hasMessageContaining("permission denied");
+        assertThat(jdbc.queryForObject("select count(*) from audit_log where id=?", Integer.class, id))
+                .isEqualTo(1);
     }
+
+    private record Credentials(String displayName, String passwordHash) {}
+    private record AuditEnvelope(String label, Credentials profile) {}
 }

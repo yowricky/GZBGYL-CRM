@@ -1,8 +1,12 @@
 spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/crm}
-    username: ${POSTGRES_USER:crm}
-    password: ${POSTGRES_PASSWORD:CHANGE-ME-UNSAFE-POSTGRES}
+    username: crm_app
+    password: ${CRM_APP_PASSWORD:CHANGE-ME-UNSAFE-CRM-APP}
+  flyway:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/crm}
+    user: ${POSTGRES_MIGRATION_USER:crm_migration}
+    password: ${POSTGRES_MIGRATION_PASSWORD:CHANGE-ME-UNSAFE-POSTGRES-MIGRATION}
   data:
     redis:
       host: ${REDIS_HOST:localhost}

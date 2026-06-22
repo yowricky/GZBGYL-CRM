@@ -34,7 +34,7 @@ class OrganizationServiceTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void clearOrganizations() {
-        jdbcTemplate.execute("TRUNCATE organization_unit CASCADE");
+        jdbcTemplate.update("delete from organization_unit");
     }
 
     @Test
