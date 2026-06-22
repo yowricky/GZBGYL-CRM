@@ -22,10 +22,17 @@ public final class CrmUserPrincipal implements UserDetails, CredentialsContainer
     private final boolean enabled;
     private final Set<String> roles;
     private final Set<String> permissions;
+    private final long sessionGeneration;
     private transient String passwordHash;
 
     public CrmUserPrincipal(UUID id, UUID organizationUnitId, String username, String displayName,
             String passwordHash, boolean enabled, Set<String> roles, Set<String> permissions) {
+        this(id, organizationUnitId, username, displayName, passwordHash, enabled, roles, permissions, 0);
+    }
+
+    private CrmUserPrincipal(UUID id, UUID organizationUnitId, String username, String displayName,
+            String passwordHash, boolean enabled, Set<String> roles, Set<String> permissions,
+            long sessionGeneration) {
         this.id = id;
         this.organizationUnitId = organizationUnitId;
         this.username = username;
@@ -34,6 +41,7 @@ public final class CrmUserPrincipal implements UserDetails, CredentialsContainer
         this.enabled = enabled;
         this.roles = Collections.unmodifiableSet(new TreeSet<>(roles));
         this.permissions = Collections.unmodifiableSet(new TreeSet<>(permissions));
+        this.sessionGeneration = sessionGeneration;
     }
 
     public UUID id() { return id; }
@@ -41,6 +49,12 @@ public final class CrmUserPrincipal implements UserDetails, CredentialsContainer
     public String displayName() { return displayName; }
     public Set<String> roles() { return roles; }
     public Set<String> permissions() { return permissions; }
+    public long sessionGeneration() { return sessionGeneration; }
+
+    public CrmUserPrincipal withSessionGeneration(long generation) {
+        return new CrmUserPrincipal(id, organizationUnitId, username, displayName, passwordHash,
+                enabled, roles, permissions, generation);
+    }
 
     @Override public Collection<? extends GrantedAuthority> getAuthorities() {
         return permissions.stream().map(SimpleGrantedAuthority::new).toList();

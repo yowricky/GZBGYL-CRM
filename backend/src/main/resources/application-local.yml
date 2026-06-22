@@ -16,6 +16,8 @@ server:
         secure: ${SESSION_COOKIE_SECURE:false}
 
 app:
+  security:
+    csrf-cookie-secure: false
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     bucket: ${MINIO_BUCKET:crm-attachments}

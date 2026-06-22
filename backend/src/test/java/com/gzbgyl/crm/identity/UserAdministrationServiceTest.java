@@ -9,6 +9,7 @@ import com.gzbgyl.crm.identity.application.OrganizationNode;
 import com.gzbgyl.crm.identity.application.OrganizationService;
 import com.gzbgyl.crm.identity.application.UserAdministrationService;
 import com.gzbgyl.crm.identity.application.UserSummary;
+import com.gzbgyl.crm.identity.application.UserSessionRevoker;
 import com.gzbgyl.crm.identity.domain.AppUser;
 import com.gzbgyl.crm.identity.persistence.AppUserRepository;
 import com.gzbgyl.crm.support.PostgresIntegrationTest;
@@ -33,6 +34,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import javax.sql.DataSource;
 
 class UserAdministrationServiceTest extends PostgresIntegrationTest {
@@ -54,6 +56,9 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
 
     @Autowired
     private DataSource dataSource;
+
+    @MockitoBean
+    private UserSessionRevoker sessionRevoker;
 
     @BeforeEach
     void cleanUsersAndOrganizations() {
@@ -275,6 +280,8 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
                 .contains("project:read:assigned", "contract:read:authorized", "payment:read:authorized");
         AppUser persisted = userRepository.findById(created.id()).orElseThrow();
         assertThat(new BCryptPasswordEncoder(12).matches("replacement password", persisted.getPasswordHash())).isTrue();
+        org.mockito.Mockito.verify(sessionRevoker, org.mockito.Mockito.times(3))
+                .revokeSessions(created.id());
 
         assertThatThrownBy(() -> service.deactivate(created.id(), created.version()))
                 .isInstanceOf(IdentityConflictException.class)

@@ -28,13 +28,16 @@ public class UserAdministrationService {
     private final RoleRepository roleRepository;
     private final OrganizationUnitRepository organizationRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final UserSessionRevoker sessionRevoker;
 
     public UserAdministrationService(AppUserRepository userRepository, RoleRepository roleRepository,
-            OrganizationUnitRepository organizationRepository, BCryptPasswordEncoder passwordEncoder) {
+            OrganizationUnitRepository organizationRepository, BCryptPasswordEncoder passwordEncoder,
+            UserSessionRevoker sessionRevoker) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.organizationRepository = organizationRepository;
         this.passwordEncoder = passwordEncoder;
+        this.sessionRevoker = sessionRevoker;
     }
 
     @Transactional
@@ -85,7 +88,9 @@ public class UserAdministrationService {
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
         user.deactivate();
-        return flushAndSummarize(user);
+        UserSummary result = flushAndSummarize(user);
+        sessionRevoker.revokeSessions(id);
+        return result;
     }
 
     @Transactional
@@ -94,7 +99,9 @@ public class UserAdministrationService {
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
         user.resetPassword(passwordEncoder.encode(validatedPassword));
-        return flushAndSummarize(user);
+        UserSummary result = flushAndSummarize(user);
+        sessionRevoker.revokeSessions(id);
+        return result;
     }
 
     @Transactional
@@ -103,7 +110,9 @@ public class UserAdministrationService {
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
         user.replaceRoles(roles);
-        return flushAndSummarize(user);
+        UserSummary result = flushAndSummarize(user);
+        sessionRevoker.revokeSessions(id);
+        return result;
     }
 
     private AppUser existing(UUID id) {

@@ -20,12 +20,15 @@ spring:
     store-type: redis
     redis:
       repository-type: indexed
+      # Versioned namespace intentionally invalidates sessions after incompatible deployments.
+      namespace: ${SESSION_REDIS_NAMESPACE:crm:session:v1}
   servlet:
     multipart:
       max-file-size: ${MULTIPART_MAX_FILE_SIZE:20MB}
       max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:25MB}
 
 server:
+  forward-headers-strategy: framework
   servlet:
     session:
       cookie:
@@ -40,6 +43,10 @@ management:
         include: health,info
 
 app:
+  security:
+    csrf-cookie-secure: ${CSRF_COOKIE_SECURE:true}
+    csrf-cookie-same-site: ${CSRF_COOKIE_SAME_SITE:Lax}
+    session-generation-namespace: ${SESSION_SECURITY_NAMESPACE:crm:security:v1:generation}
   minio:
     endpoint: ${MINIO_ENDPOINT}
     bucket: ${MINIO_BUCKET}

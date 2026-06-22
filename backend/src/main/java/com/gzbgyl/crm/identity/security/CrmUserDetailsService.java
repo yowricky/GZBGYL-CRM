@@ -1,9 +1,10 @@
-package com.gzbgyl.crm.shared.security;
+package com.gzbgyl.crm.identity.security;
 
 import com.gzbgyl.crm.identity.domain.AppUser;
 import com.gzbgyl.crm.identity.domain.Permission;
 import com.gzbgyl.crm.identity.domain.Role;
 import com.gzbgyl.crm.identity.persistence.AppUserRepository;
+import com.gzbgyl.crm.shared.security.CrmUserPrincipal;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;

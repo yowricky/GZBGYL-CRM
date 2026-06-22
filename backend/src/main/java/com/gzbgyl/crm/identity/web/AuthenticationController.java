@@ -1,14 +1,21 @@
 package com.gzbgyl.crm.identity.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.gzbgyl.crm.shared.api.ApiError;
 import com.gzbgyl.crm.shared.security.CurrentUser;
 import com.gzbgyl.crm.shared.security.CurrentUserService;
+import com.gzbgyl.crm.shared.security.CrmUserPrincipal;
+import com.gzbgyl.crm.shared.security.SessionSecurityService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Size;
 import java.io.IOException;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -23,7 +30,6 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
-import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,12 +43,12 @@ public class AuthenticationController {
     private final CurrentUserService currentUsers;
     private final ObjectMapper mapper;
     private final CsrfTokenRepository csrfTokens;
-    private final RedisIndexedSessionRepository sessions;
+    private final SessionSecurityService sessions;
     private final SecurityContextRepository contexts = new HttpSessionSecurityContextRepository();
 
     public AuthenticationController(AuthenticationManager authenticationManager,
             CurrentUserService currentUsers, ObjectMapper mapper, CsrfTokenRepository csrfTokens,
-            RedisIndexedSessionRepository sessions) {
+            SessionSecurityService sessions) {
         this.authenticationManager = authenticationManager;
         this.currentUsers = currentUsers;
         this.mapper = mapper;
@@ -64,10 +70,8 @@ public class AuthenticationController {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(body.username(), body.password()));
+            authentication = sessions.startSession(authentication);
             HttpSession existing = request.getSession(false);
-            String currentSessionId = existing == null ? null : existing.getId();
-            sessions.findByPrincipalName(authentication.getName()).keySet().stream()
-                    .filter(id -> !id.equals(currentSessionId)).forEach(sessions::deleteById);
             if (existing != null) {
                 request.changeSessionId();
             }
@@ -75,6 +79,8 @@ public class AuthenticationController {
             context.setAuthentication(authentication);
             SecurityContextHolder.setContext(context);
             contexts.saveContext(context, request, response);
+            sessions.cleanupOlderSessions(request.getSession().getId(),
+                    (CrmUserPrincipal) authentication.getPrincipal());
             return ResponseEntity.noContent().build();
         } catch (AuthenticationException exception) {
             SecurityContextHolder.clearContext();
@@ -101,7 +107,33 @@ public class AuthenticationController {
         return ResponseEntity.noContent().build();
     }
 
-    public record LoginRequest(
-            @NotBlank(message = "Username is required") String username,
-            @NotBlank(message = "Password is required") String password) {}
+    public static final class LoginRequest {
+        @NotBlank(message = "Username is required")
+        @Size(max = 80, message = "Username must be at most 80 characters")
+        private final String username;
+        @NotBlank(message = "Password is required")
+        @Size(max = 72, message = "Password must be at most 72 characters")
+        private final String password;
+
+        @JsonCreator
+        public LoginRequest(@JsonProperty("username") String username,
+                @JsonProperty("password") String password) {
+            this.username = username;
+            this.password = password;
+        }
+
+        public String username() { return username; }
+        public String password() { return password; }
+
+        @JsonIgnore
+        @AssertTrue(message = "Password must be at most 72 UTF-8 bytes")
+        public boolean isPasswordWithinBcryptLimit() {
+            return password == null || password.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 72;
+        }
+
+        @Override
+        public String toString() {
+            return "LoginRequest[username=" + username + ", password=[REDACTED]]";
+        }
+    }
 }

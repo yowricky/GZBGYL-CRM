@@ -6,10 +6,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.gzbgyl.crm.shared.security.CrmUserPrincipal;
+import com.gzbgyl.crm.identity.application.UserAdministrationService;
+import com.gzbgyl.crm.identity.web.AuthenticationController;
 import com.gzbgyl.crm.support.PostgresRedisIntegrationTest;
 import jakarta.servlet.http.Cookie;
 import java.io.ByteArrayOutputStream;
@@ -19,6 +22,8 @@ import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -31,6 +36,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @AutoConfigureMockMvc
@@ -40,6 +47,7 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired StringRedisTemplate redis;
+    @Autowired UserAdministrationService userAdministration;
 
     private UUID organizationId;
 
@@ -67,12 +75,16 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
     void anonymousCsrfEndpointReturnsTokenAndReadableCookie() throws Exception {
         mvc.perform(get("/api/auth/csrf"))
                 .andExpect(status().isOk())
-                .andExpect(cookie().exists("XSRF-TOKEN"))
-                .andExpect(cookie().httpOnly("XSRF-TOKEN", false))
-                .andExpect(cookie().path("XSRF-TOKEN", "/"))
+                .andExpect(header().string("Set-Cookie",
+                        org.hamcrest.Matchers.containsString("XSRF-TOKEN=")))
+                .andExpect(header().string("Set-Cookie",
+                        org.hamcrest.Matchers.containsString("Path=/")))
+                .andExpect(header().string("Set-Cookie",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("HttpOnly"))))
                 .andExpect(jsonPath("$.token").isNotEmpty())
                 .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"));
     }
+
 
     @Test
     void loginPersistsSessionInRedisAndMeReturnsOnlySafeIdentityData() throws Exception {
@@ -96,7 +108,7 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());
 
-        assertThat(redis.keys("spring:session:sessions:*")).isNotEmpty();
+        assertThat(redis.keys("crm:session:v1:sessions:*")).isNotEmpty();
     }
 
     @Test
@@ -149,6 +161,19 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
         mvc.perform(get("/api/auth/me").cookie(second)).andExpect(status().isOk());
     }
 
+    @ParameterizedTest
+    @EnumSource(SecurityMutation.class)
+    void securityMutationsRevokeExistingSession(SecurityMutation mutation) throws Exception {
+        UUID userId = insertUser("alice", "correct horse battery", true, "SALES");
+        Cookie session = login("alice", "correct horse battery").andReturn().getResponse().getCookie("SESSION");
+
+        mutation.apply(userAdministration, userId);
+
+        mvc.perform(get("/api/auth/me").cookie(session))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+    }
+
     @Test
     void methodSecurityDenialUsesStableJsonError() throws Exception {
         insertUser("alice", "correct horse battery", true, "SALES");
@@ -185,6 +210,49 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
     }
 
     @Test
+    void loginInputIsBoundedAndNeverRenderedWithPlaintextPassword() throws Exception {
+        mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + "u".repeat(81)
+                                + "\",\"password\":\"correct horse battery\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"alice\",\"password\":\"" + "p".repeat(73) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        assertThat(new AuthenticationController.LoginRequest("alice", "top-secret-password").toString())
+                .doesNotContain("top-secret-password")
+                .contains("[REDACTED]");
+    }
+
+    @Test
+    void commonMvcFailuresUseSanitizedStableApiErrors() throws Exception {
+        insertUser("alice", "correct horse battery", true, "SALES");
+        Cookie session = login("alice", "correct horse battery").andReturn().getResponse().getCookie("SESSION");
+
+        mvc.perform(get("/test/json-only").cookie(session))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"));
+        mvc.perform(post("/test/json-only").cookie(session).with(csrf())
+                        .contentType(MediaType.TEXT_PLAIN).content("text"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+        mvc.perform(get("/test/required-param").cookie(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MISSING_PARAMETER"));
+        mvc.perform(get("/test/no-such-handler").cookie(session))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mvc.perform(get("/test/internal-error").cookie(session))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("An unexpected error occurred"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("database-password"))));
+    }
+
+    @Test
     void principalSerializationAndToStringNeverLeakPasswordHash() throws Exception {
         CrmUserPrincipal principal = new CrmUserPrincipal(UUID.randomUUID(), organizationId, "alice",
                 "Alice", "$2a$12$top-secret-hash", true, Set.of("SALES"), Set.of("lead:read"));
@@ -200,6 +268,7 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
         return mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"));
     }
+
 
     private UUID insertUser(String username, String password, boolean active, String role) {
         UUID id = UUID.randomUUID();
@@ -233,5 +302,40 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
         String notFound() {
             throw new java.util.NoSuchElementException("Record not found");
         }
+
+        @PostMapping(value = "/test/json-only", consumes = MediaType.APPLICATION_JSON_VALUE)
+        String jsonOnly(@RequestBody String body) {
+            return body;
+        }
+
+        @GetMapping("/test/required-param")
+        String requiredParam(@org.springframework.web.bind.annotation.RequestParam String value) {
+            return value;
+        }
+
+        @GetMapping("/test/internal-error")
+        String internalError() {
+            throw new IllegalStateException("database-password=do-not-leak");
+        }
+    }
+
+    private enum SecurityMutation {
+        DEACTIVATE {
+            @Override void apply(UserAdministrationService service, UUID id) {
+                service.deactivate(id, 0);
+            }
+        },
+        RESET_PASSWORD {
+            @Override void apply(UserAdministrationService service, UUID id) {
+                service.resetPassword(id, "replacement password", 0);
+            }
+        },
+        ASSIGN_ROLES {
+            @Override void apply(UserAdministrationService service, UUID id) {
+                service.assignRoles(id, Set.of("PROJECT_MANAGER"), 0);
+            }
+        };
+
+        abstract void apply(UserAdministrationService service, UUID id);
     }
 }
