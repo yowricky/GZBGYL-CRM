@@ -91,6 +91,33 @@ class BrowserSessionSecurityTest extends PostgresRedisIntegrationTest {
         }
     }
 
+    @Test
+    void authenticationAndLogoutClearCsrfCookieForRotation() throws Exception {
+        CsrfExchange initial = browserCsrf();
+        MvcResult login = mvc.perform(loginRequest(initial, initial.token()))
+                .andExpect(status().isNoContent())
+                .andReturn();
+        assertThat(login.getResponse().getHeaders("Set-Cookie"))
+                .anySatisfy(value -> assertThat(value)
+                        .startsWith("XSRF-TOKEN=")
+                        .contains("Max-Age=0"));
+        Cookie session = login.getResponse().getCookie("SESSION");
+
+        CsrfExchange rotated = browserCsrf(session);
+        assertThat(rotated.token()).isNotEqualTo(initial.token());
+        mvc.perform(get("/api/auth/me").cookie(session))
+                .andExpect(status().isOk());
+        MvcResult logout = mvc.perform(post("/api/auth/logout")
+                        .cookie(session, rotated.cookie())
+                        .header("X-XSRF-TOKEN", rotated.token()))
+                .andExpect(status().isNoContent())
+                .andReturn();
+        assertThat(logout.getResponse().getHeaders("Set-Cookie"))
+                .anySatisfy(value -> assertThat(value)
+                        .startsWith("XSRF-TOKEN=")
+                        .contains("Max-Age=0"));
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder loginRequest(
             CsrfExchange csrf, String headerToken) {
         return post("/api/auth/login")
@@ -101,7 +128,15 @@ class BrowserSessionSecurityTest extends PostgresRedisIntegrationTest {
     }
 
     private CsrfExchange browserCsrf() throws Exception {
-        MvcResult result = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn();
+        return browserCsrf(null);
+    }
+
+    private CsrfExchange browserCsrf(Cookie session) throws Exception {
+        var request = get("/api/auth/csrf");
+        if (session != null) {
+            request.cookie(session);
+        }
+        MvcResult result = mvc.perform(request).andExpect(status().isOk()).andReturn();
         String token = objectMapper.readTree(result.getResponse().getContentAsString()).get("token").asText();
         String setCookie = result.getResponse().getHeaders("Set-Cookie").stream()
                 .filter(value -> value.startsWith("XSRF-TOKEN="))

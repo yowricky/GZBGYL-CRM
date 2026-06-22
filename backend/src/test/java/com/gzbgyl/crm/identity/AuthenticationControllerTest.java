@@ -10,14 +10,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.gzbgyl.crm.shared.security.CrmUserPrincipal;
 import com.gzbgyl.crm.identity.application.UserAdministrationService;
 import com.gzbgyl.crm.identity.web.AuthenticationController;
+import com.gzbgyl.crm.shared.security.CrmUserPrincipal;
 import com.gzbgyl.crm.support.PostgresRedisIntegrationTest;
 import jakarta.servlet.http.Cookie;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +34,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +50,7 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired StringRedisTemplate redis;
     @Autowired UserAdministrationService userAdministration;
+    @Autowired RedisIndexedSessionRepository sessionRepository;
 
     private UUID organizationId;
 
@@ -244,12 +247,55 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
         mvc.perform(get("/test/no-such-handler").cookie(session))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        mvc.perform(get("/test/json-response").cookie(session)
+                        .accept(MediaType.APPLICATION_XML))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"));
         mvc.perform(get("/test/internal-error").cookie(session))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.message").value("An unexpected error occurred"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("database-password"))));
+    }
+
+    @Test
+    void broadJavaExceptionMessagesAreNeverExposed() throws Exception {
+        insertUser("alice", "correct horse battery", true, "SALES");
+        Cookie session = login("alice", "correct horse battery").andReturn().getResponse().getCookie("SESSION");
+
+        mvc.perform(get("/test/internal-illegal").cookie(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Invalid request"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("internal-secret"))));
+        mvc.perform(get("/test/internal-missing").cookie(session))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("Resource not found"))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("internal-secret"))));
+    }
+
+    @Test
+    void successfulLoginRotatesPreExistingAnonymousSessionId() throws Exception {
+        insertUser("alice", "correct horse battery", true, "SALES");
+        var anonymous = sessionRepository.createSession();
+        sessionRepository.save(anonymous);
+        Cookie anonymousCookie = new Cookie("SESSION", Base64.getEncoder().encodeToString(
+                anonymous.getId().getBytes(StandardCharsets.UTF_8)));
+
+        MvcResult result = mvc.perform(post("/api/auth/login").cookie(anonymousCookie).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"alice\",\"password\":\"correct horse battery\"}"))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().exists("SESSION"))
+                .andReturn();
+
+        assertThat(result.getResponse().getCookie("SESSION").getValue())
+                .isNotEqualTo(anonymousCookie.getValue());
     }
 
     @Test
@@ -300,7 +346,7 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
 
         @GetMapping("/test/not-found")
         String notFound() {
-            throw new java.util.NoSuchElementException("Record not found");
+            throw new com.gzbgyl.crm.shared.api.ResourceNotFoundException("Record not found");
         }
 
         @PostMapping(value = "/test/json-only", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -316,6 +362,21 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
         @GetMapping("/test/internal-error")
         String internalError() {
             throw new IllegalStateException("database-password=do-not-leak");
+        }
+
+        @GetMapping(value = "/test/json-response", produces = MediaType.APPLICATION_JSON_VALUE)
+        String jsonResponse() {
+            return "{}";
+        }
+
+        @GetMapping("/test/internal-illegal")
+        String internalIllegal() {
+            throw new IllegalArgumentException("internal-secret=value");
+        }
+
+        @GetMapping("/test/internal-missing")
+        String internalMissing() {
+            throw new java.util.NoSuchElementException("internal-secret=value");
         }
     }
 

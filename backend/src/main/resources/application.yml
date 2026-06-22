@@ -28,6 +28,7 @@ spring:
       max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:25MB}
 
 server:
+  # Forwarded headers are trusted because Compose keeps the backend behind the internal frontend proxy.
   forward-headers-strategy: framework
   servlet:
     session:

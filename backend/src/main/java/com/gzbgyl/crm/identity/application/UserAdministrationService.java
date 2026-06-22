@@ -6,6 +6,8 @@ import com.gzbgyl.crm.identity.domain.Role;
 import com.gzbgyl.crm.identity.persistence.AppUserRepository;
 import com.gzbgyl.crm.identity.persistence.OrganizationUnitRepository;
 import com.gzbgyl.crm.identity.persistence.RoleRepository;
+import com.gzbgyl.crm.shared.api.InvalidRequestException;
+import com.gzbgyl.crm.shared.api.InvalidStateException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Locale;
@@ -43,7 +45,7 @@ public class UserAdministrationService {
     @Transactional
     public UserSummary createUser(CreateUserCommand command) {
         if (command == null) {
-            throw new IllegalArgumentException("用户信息不能为空");
+            throw new InvalidRequestException("用户信息不能为空");
         }
         String username = validUsername(command.username());
         String normalizedUsername = username.toLowerCase(Locale.ROOT);
@@ -51,17 +53,17 @@ public class UserAdministrationService {
         String password = validPassword(command.initialPassword());
         UUID organizationId = command.organizationUnitId();
         if (organizationId == null) {
-            throw new IllegalArgumentException("组织不存在");
+            throw new InvalidRequestException("组织不存在");
         }
         organizationRepository.acquireHierarchyMutationLock();
         var organization = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new IllegalArgumentException("组织不存在"));
+                .orElseThrow(() -> new InvalidRequestException("组织不存在"));
         if (!organization.isActive()) {
-            throw new IllegalStateException("组织已停用");
+            throw new InvalidStateException("组织已停用");
         }
         Set<Role> roles = resolveRoles(command.roleCodes());
         if (userRepository.existsByNormalizedUsername(normalizedUsername)) {
-            throw new IllegalArgumentException(DUPLICATE_USERNAME);
+            throw new InvalidRequestException(DUPLICATE_USERNAME);
         }
         AppUser user = new AppUser(organizationId, username, normalizedUsername, displayName,
                 passwordEncoder.encode(password), roles);
@@ -69,7 +71,7 @@ public class UserAdministrationService {
             return toSummary(userRepository.saveAndFlush(user));
         } catch (DataIntegrityViolationException exception) {
             if (hasConstraint(exception, "uk_app_user_normalized_username")) {
-                throw new IllegalArgumentException(DUPLICATE_USERNAME, exception);
+                throw new InvalidRequestException(DUPLICATE_USERNAME, exception);
             }
             throw exception;
         }
@@ -117,27 +119,27 @@ public class UserAdministrationService {
 
     private AppUser existing(UUID id) {
         if (id == null) {
-            throw new IllegalArgumentException("用户不存在");
+            throw new InvalidRequestException("用户不存在");
         }
         return userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+                .orElseThrow(() -> new InvalidRequestException("用户不存在"));
     }
 
     private Set<Role> resolveRoles(Collection<String> roleCodes) {
         if (roleCodes == null || roleCodes.isEmpty()) {
-            throw new IllegalArgumentException("角色不能为空");
+            throw new InvalidRequestException("角色不能为空");
         }
         Set<String> normalized = new TreeSet<>();
         for (String code : roleCodes) {
             if (code == null || code.isBlank()) {
-                throw new IllegalArgumentException("角色不能为空");
+                throw new InvalidRequestException("角色不能为空");
             }
             normalized.add(code.trim().toUpperCase(Locale.ROOT));
         }
         Set<Role> roles = roleRepository.findAllByCodeIn(normalized);
         Set<String> found = roles.stream().map(Role::getCode).collect(java.util.stream.Collectors.toSet());
         normalized.stream().filter(code -> !found.contains(code)).findFirst()
-                .ifPresent(code -> { throw new IllegalArgumentException("角色不存在: " + code); });
+                .ifPresent(code -> { throw new InvalidRequestException("角色不存在: " + code); });
         return roles;
     }
 
@@ -145,7 +147,7 @@ public class UserAdministrationService {
         try {
             userRepository.flush();
             AppUser detailed = userRepository.findDetailedById(user.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
+                    .orElseThrow(() -> new InvalidRequestException("用户不存在"));
             return toSummary(detailed);
         } catch (OptimisticLockingFailureException exception) {
             throw new IdentityConflictException(CONFLICT);
@@ -172,35 +174,35 @@ public class UserAdministrationService {
 
     private static String validUsername(String username) {
         if (username == null || username.isBlank()) {
-            throw new IllegalArgumentException("用户名不能为空");
+            throw new InvalidRequestException("用户名不能为空");
         }
         String trimmed = username.trim();
         if (trimmed.length() > 80) {
-            throw new IllegalArgumentException("用户名长度不能超过80个字符");
+            throw new InvalidRequestException("用户名长度不能超过80个字符");
         }
         return trimmed;
     }
 
     private static String validDisplayName(String displayName) {
         if (displayName == null || displayName.isBlank()) {
-            throw new IllegalArgumentException("显示名称不能为空");
+            throw new InvalidRequestException("显示名称不能为空");
         }
         String trimmed = displayName.trim();
         if (trimmed.length() > 120) {
-            throw new IllegalArgumentException("显示名称长度不能超过120个字符");
+            throw new InvalidRequestException("显示名称长度不能超过120个字符");
         }
         return trimmed;
     }
 
     private static String validPassword(String password) {
         if (password == null || password.isBlank()) {
-            throw new IllegalArgumentException("密码不能为空");
+            throw new InvalidRequestException("密码不能为空");
         }
         if (password.length() < 12) {
-            throw new IllegalArgumentException("密码长度不能少于12个字符");
+            throw new InvalidRequestException("密码长度不能少于12个字符");
         }
         if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new IllegalArgumentException("密码UTF-8编码不能超过72字节");
+            throw new InvalidRequestException("密码UTF-8编码不能超过72字节");
         }
         return password;
     }

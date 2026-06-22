@@ -1,9 +1,9 @@
 package com.gzbgyl.crm.identity.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gzbgyl.crm.shared.api.ApiError;
 import com.gzbgyl.crm.shared.security.CurrentUser;
 import com.gzbgyl.crm.shared.security.CurrentUserService;
@@ -26,8 +26,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.csrf.CsrfAuthenticationStrategy;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,6 +46,7 @@ public class AuthenticationController {
     private final ObjectMapper mapper;
     private final CsrfTokenRepository csrfTokens;
     private final SessionSecurityService sessions;
+    private final SessionAuthenticationStrategy csrfAuthentication;
     private final SecurityContextRepository contexts = new HttpSessionSecurityContextRepository();
 
     public AuthenticationController(AuthenticationManager authenticationManager,
@@ -54,6 +57,7 @@ public class AuthenticationController {
         this.mapper = mapper;
         this.csrfTokens = csrfTokens;
         this.sessions = sessions;
+        this.csrfAuthentication = new CsrfAuthenticationStrategy(csrfTokens);
     }
 
     @GetMapping("/csrf")
@@ -71,6 +75,7 @@ public class AuthenticationController {
             Authentication authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(body.username(), body.password()));
             authentication = sessions.startSession(authentication);
+            csrfAuthentication.onAuthentication(authentication, request, response);
             HttpSession existing = request.getSession(false);
             if (existing != null) {
                 request.changeSessionId();
@@ -98,8 +103,9 @@ public class AuthenticationController {
     }
 
     @PostMapping("/logout")
-    ResponseEntity<Void> logout(HttpServletRequest request) {
+    ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         SecurityContextHolder.clearContext();
+        csrfTokens.saveToken(null, request, response);
         HttpSession session = request.getSession(false);
         if (session != null) {
             session.invalidate();

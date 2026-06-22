@@ -1,30 +1,37 @@
 package com.gzbgyl.crm.shared.api;
 
-import com.gzbgyl.crm.identity.application.IdentityConflictException;
-import com.gzbgyl.crm.identity.application.OrganizationConflictException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private final ObjectMapper mapper;
+
+    public GlobalExceptionHandler(ObjectMapper mapper) {
+        this.mapper = mapper;
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiError> validation(MethodArgumentNotValidException exception, HttpServletRequest request) {
@@ -54,9 +61,11 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
-    ResponseEntity<ApiError> unacceptableMedia(HttpServletRequest request) {
-        return response(HttpStatus.NOT_ACCEPTABLE, "NOT_ACCEPTABLE",
-                "Requested response media type is not available", request);
+    void unacceptableMedia(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setStatus(HttpStatus.NOT_ACCEPTABLE.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        mapper.writeValue(response.getOutputStream(), ApiError.of("NOT_ACCEPTABLE",
+                "Requested response media type is not available", request.getRequestURI()));
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
@@ -70,19 +79,34 @@ public class GlobalExceptionHandler {
         return response(HttpStatus.NOT_FOUND, "NOT_FOUND", "Resource not found", request);
     }
 
-    @ExceptionHandler({IdentityConflictException.class, OrganizationConflictException.class})
-    ResponseEntity<ApiError> conflict(RuntimeException exception, HttpServletRequest request) {
+    @ExceptionHandler(ConflictException.class)
+    ResponseEntity<ApiError> conflict(ConflictException exception, HttpServletRequest request) {
         return response(HttpStatus.CONFLICT, "CONFLICT", exception.getMessage(), request);
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    ResponseEntity<ApiError> illegalArgument(IllegalArgumentException exception, HttpServletRequest request) {
+    @ExceptionHandler({InvalidRequestException.class, InvalidStateException.class})
+    ResponseEntity<ApiError> invalidRequest(RuntimeException exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", exception.getMessage(), request);
     }
 
-    @ExceptionHandler(NoSuchElementException.class)
-    ResponseEntity<ApiError> notFound(NoSuchElementException exception, HttpServletRequest request) {
+    @ExceptionHandler(ResourceNotFoundException.class)
+    ResponseEntity<ApiError> notFound(ResourceNotFoundException exception, HttpServletRequest request) {
         return response(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<ApiError> internalIllegalArgument(
+            IllegalArgumentException exception, HttpServletRequest request) {
+        log.warn("Sanitized unexpected invalid argument: method={}, path={}",
+                request.getMethod(), request.getRequestURI(), exception);
+        return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Invalid request", request);
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    ResponseEntity<ApiError> internalNotFound(NoSuchElementException exception, HttpServletRequest request) {
+        log.warn("Sanitized unexpected missing value: method={}, path={}",
+                request.getMethod(), request.getRequestURI(), exception);
+        return response(HttpStatus.NOT_FOUND, "NOT_FOUND", "Resource not found", request);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

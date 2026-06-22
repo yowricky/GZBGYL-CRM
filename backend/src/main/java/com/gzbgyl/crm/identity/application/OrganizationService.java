@@ -2,6 +2,8 @@ package com.gzbgyl.crm.identity.application;
 
 import com.gzbgyl.crm.identity.domain.OrganizationUnit;
 import com.gzbgyl.crm.identity.persistence.OrganizationUnitRepository;
+import com.gzbgyl.crm.shared.api.InvalidRequestException;
+import com.gzbgyl.crm.shared.api.InvalidStateException;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -68,11 +70,11 @@ public class OrganizationService {
         OrganizationUnit unit = existing(id);
         requireVersion(unit, expectedVersion);
         if (id.equals(newParentId)) {
-            throw new IllegalArgumentException(INVALID_MOVE);
+            throw new InvalidRequestException(INVALID_MOVE);
         }
         OrganizationUnit newParent = activeParent(newParentId);
         if (newParent.getPath().startsWith(unit.getPath())) {
-            throw new IllegalArgumentException(INVALID_MOVE);
+            throw new InvalidRequestException(INVALID_MOVE);
         }
 
         String oldPrefix = unit.getPath();
@@ -81,7 +83,7 @@ public class OrganizationService {
         int movedMaximumLength = repository.maximumSubtreePathLength(oldPrefix)
                 + newPrefix.length() - oldPrefix.length();
         if (movedMaximumLength > MAX_PATH_LENGTH) {
-            throw new IllegalArgumentException(PATH_TOO_LONG);
+            throw new InvalidRequestException(PATH_TOO_LONG);
         }
         unit.moveTo(newParentId, newPrefix);
         flushMutation();
@@ -95,7 +97,7 @@ public class OrganizationService {
         OrganizationUnit unit = existing(id);
         requireVersion(unit, expectedVersion);
         if (repository.hasActiveDescendant(unit.getId(), unit.getPath())) {
-            throw new IllegalStateException(ACTIVE_DESCENDANT);
+            throw new InvalidStateException(ACTIVE_DESCENDANT);
         }
         unit.deactivate();
         flushMutation();
@@ -121,46 +123,46 @@ public class OrganizationService {
 
     private OrganizationUnit activeParent(UUID parentId) {
         OrganizationUnit parent = repository.findById(parentId)
-                .orElseThrow(() -> new IllegalArgumentException(PARENT_NOT_FOUND));
+                .orElseThrow(() -> new InvalidRequestException(PARENT_NOT_FOUND));
         if (!parent.isActive() || repository.hasInactiveAncestorOrSelf(parent.getPath())) {
-            throw new IllegalStateException(PARENT_INACTIVE);
+            throw new InvalidStateException(PARENT_INACTIVE);
         }
         return parent;
     }
 
     private OrganizationUnit existing(UUID id) {
         return repository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(ORGANIZATION_NOT_FOUND));
+                .orElseThrow(() -> new InvalidRequestException(ORGANIZATION_NOT_FOUND));
     }
 
     private String uniqueCode(String code) {
         if (code == null || code.isBlank()) {
-            throw new IllegalArgumentException(CODE_REQUIRED);
+            throw new InvalidRequestException(CODE_REQUIRED);
         }
         String normalized = code.trim().toUpperCase(Locale.ROOT);
         if (normalized.length() > MAX_CODE_LENGTH) {
-            throw new IllegalArgumentException(CODE_TOO_LONG);
+            throw new InvalidRequestException(CODE_TOO_LONG);
         }
         if (repository.existsByCode(normalized)) {
-            throw new IllegalArgumentException(DUPLICATE_CODE);
+            throw new InvalidRequestException(DUPLICATE_CODE);
         }
         return normalized;
     }
 
     private String validName(String name) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException(NAME_REQUIRED);
+            throw new InvalidRequestException(NAME_REQUIRED);
         }
         String trimmed = name.trim();
         if (trimmed.length() > MAX_NAME_LENGTH) {
-            throw new IllegalArgumentException(NAME_TOO_LONG);
+            throw new InvalidRequestException(NAME_TOO_LONG);
         }
         return trimmed;
     }
 
     private void validatePath(String path) {
         if (path.length() > MAX_PATH_LENGTH) {
-            throw new IllegalArgumentException(PATH_TOO_LONG);
+            throw new InvalidRequestException(PATH_TOO_LONG);
         }
     }
 
@@ -186,7 +188,7 @@ public class OrganizationService {
             while (cause != null) {
                 if (cause instanceof ConstraintViolationException constraintViolation
                         && "uk_organization_unit_code".equals(constraintViolation.getConstraintName())) {
-                    throw new IllegalArgumentException(DUPLICATE_CODE, exception);
+                    throw new InvalidRequestException(DUPLICATE_CODE, exception);
                 }
                 cause = cause.getCause();
             }
