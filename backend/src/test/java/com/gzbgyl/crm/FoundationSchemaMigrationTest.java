@@ -20,7 +20,7 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
     void appliesSecurityScopePermissionMigration() {
         assertThat(jdbcTemplate.queryForObject(
                 "select max(version) from flyway_schema_history where success", String.class))
-                .isEqualTo("3");
+                .isEqualTo("4");
         assertThat(jdbcTemplate.queryForList(
                 "select code from permission where code like 'financial:%' order by code",
                 String.class)).containsExactly(

@@ -1,5 +1,8 @@
 package com.gzbgyl.crm.identity.application;
 
+import com.gzbgyl.crm.audit.application.AuditActorProvider;
+import com.gzbgyl.crm.audit.application.AuditCommand;
+import com.gzbgyl.crm.audit.application.AuditService;
 import com.gzbgyl.crm.identity.domain.AppUser;
 import com.gzbgyl.crm.identity.domain.Permission;
 import com.gzbgyl.crm.identity.domain.Role;
@@ -11,6 +14,7 @@ import com.gzbgyl.crm.shared.api.InvalidStateException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -31,15 +35,19 @@ public class UserAdministrationService {
     private final OrganizationUnitRepository organizationRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final UserSessionRevoker sessionRevoker;
+    private final AuditService audit;
+    private final AuditActorProvider actor;
 
     public UserAdministrationService(AppUserRepository userRepository, RoleRepository roleRepository,
             OrganizationUnitRepository organizationRepository, BCryptPasswordEncoder passwordEncoder,
-            UserSessionRevoker sessionRevoker) {
+            UserSessionRevoker sessionRevoker, AuditService audit, AuditActorProvider actor) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.organizationRepository = organizationRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessionRevoker = sessionRevoker;
+        this.audit = audit;
+        this.actor = actor;
     }
 
     @Transactional
@@ -68,7 +76,12 @@ public class UserAdministrationService {
         AppUser user = new AppUser(organizationId, username, normalizedUsername, displayName,
                 passwordEncoder.encode(password), roles);
         try {
-            return toSummary(userRepository.saveAndFlush(user));
+            UserSummary created = toSummary(userRepository.saveAndFlush(user));
+            record("USER_CREATED", created.id(), null, Map.of(
+                    "username", created.username(), "displayName", created.displayName(),
+                    "organizationUnitId", created.organizationUnitId(), "active", created.active(),
+                    "roles", created.roles()));
+            return created;
         } catch (DataIntegrityViolationException exception) {
             if (hasConstraint(exception, "uk_app_user_normalized_username")) {
                 throw new InvalidRequestException(DUPLICATE_USERNAME, exception);
@@ -81,16 +94,21 @@ public class UserAdministrationService {
     public UserSummary activate(UUID id, long expectedVersion) {
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
+        Map<String, ?> before = Map.of("active", user.isActive());
         user.activate();
-        return flushAndSummarize(user);
+        UserSummary result = flushAndSummarize(user);
+        record("USER_ACTIVATED", id, before, Map.of("active", true));
+        return result;
     }
 
     @Transactional
     public UserSummary deactivate(UUID id, long expectedVersion) {
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
+        Map<String, ?> before = Map.of("active", user.isActive());
         user.deactivate();
         UserSummary result = flushAndSummarize(user);
+        record("USER_DEACTIVATED", id, before, Map.of("active", false));
         sessionRevoker.revokeSessions(id);
         return result;
     }
@@ -102,6 +120,7 @@ public class UserAdministrationService {
         requireVersion(user, expectedVersion);
         user.resetPassword(passwordEncoder.encode(validatedPassword));
         UserSummary result = flushAndSummarize(user);
+        record("USER_PASSWORD_RESET", id, null, Map.of("passwordChanged", true));
         sessionRevoker.revokeSessions(id);
         return result;
     }
@@ -111,8 +130,11 @@ public class UserAdministrationService {
         Set<Role> roles = resolveRoles(roleCodes);
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
+        Set<String> previous = user.getRoles().stream().map(Role::getCode)
+                .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
         user.replaceRoles(roles);
         UserSummary result = flushAndSummarize(user);
+        record("USER_ROLES_ASSIGNED", id, Map.of("roles", previous), Map.of("roles", result.roles()));
         sessionRevoker.revokeSessions(id);
         return result;
     }
@@ -217,5 +239,10 @@ public class UserAdministrationService {
             cause = cause.getCause();
         }
         return false;
+    }
+
+    private void record(String event, UUID id, Map<String, ?> before, Map<String, ?> after) {
+        audit.record(new AuditCommand(actor.actorId(), event, "USER", id,
+                before, after, actor.ipAddress(), null));
     }
 }

@@ -1,11 +1,15 @@
 package com.gzbgyl.crm.identity.application;
 
+import com.gzbgyl.crm.audit.application.AuditActorProvider;
+import com.gzbgyl.crm.audit.application.AuditCommand;
+import com.gzbgyl.crm.audit.application.AuditService;
 import com.gzbgyl.crm.identity.domain.OrganizationUnit;
 import com.gzbgyl.crm.identity.persistence.OrganizationUnitRepository;
 import com.gzbgyl.crm.shared.api.InvalidRequestException;
 import com.gzbgyl.crm.shared.api.InvalidStateException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -33,16 +37,23 @@ public class OrganizationService {
     private static final String ACTIVE_DESCENDANT = "组织存在启用的下级，不能停用";
 
     private final OrganizationUnitRepository repository;
+    private final AuditService audit;
+    private final AuditActorProvider actor;
 
-    public OrganizationService(OrganizationUnitRepository repository) {
+    public OrganizationService(OrganizationUnitRepository repository, AuditService audit,
+            AuditActorProvider actor) {
         this.repository = repository;
+        this.audit = audit;
+        this.actor = actor;
     }
 
     @Transactional
     public OrganizationNode createRoot(String code, String name) {
         repository.acquireHierarchyMutationLock();
         OrganizationUnit root = new OrganizationUnit(null, uniqueCode(code), validName(name), "/");
-        return saveNew(root);
+        OrganizationNode created = saveNew(root);
+        record("ORGANIZATION_CREATED", created.id(), null, organizationState(created));
+        return created;
     }
 
     @Transactional
@@ -52,16 +63,21 @@ public class OrganizationService {
         OrganizationUnit child = new OrganizationUnit(
                 parentId, uniqueCode(code), validName(name), parent.getPath());
         validatePath(child.getPath());
-        return saveNew(child);
+        OrganizationNode created = saveNew(child);
+        record("ORGANIZATION_CREATED", created.id(), null, organizationState(created));
+        return created;
     }
 
     @Transactional
     public OrganizationNode rename(UUID id, String name, long expectedVersion) {
         OrganizationUnit unit = existing(id);
         requireVersion(unit, expectedVersion);
+        Map<String, ?> before = Map.of("name", unit.getName());
         unit.rename(validName(name));
         flushMutation();
-        return toNode(unit);
+        OrganizationNode result = toNode(unit);
+        record("ORGANIZATION_RENAMED", id, before, Map.of("name", result.name()));
+        return result;
     }
 
     @Transactional
@@ -78,6 +94,7 @@ public class OrganizationService {
         }
 
         String oldPrefix = unit.getPath();
+        Map<String, ?> before = mapNullable("parentId", unit.getParentId(), "path", oldPrefix);
         String newPrefix = newParent.getPath() + unit.getId() + "/";
         validatePath(newPrefix);
         int movedMaximumLength = repository.maximumSubtreePathLength(oldPrefix)
@@ -88,7 +105,10 @@ public class OrganizationService {
         unit.moveTo(newParentId, newPrefix);
         flushMutation();
         repository.replaceDescendantPathPrefix(unit.getId(), oldPrefix, newPrefix);
-        return toNode(unit);
+        OrganizationNode result = toNode(unit);
+        record("ORGANIZATION_MOVED", id, before,
+                mapNullable("parentId", result.parentId(), "path", result.path()));
+        return result;
     }
 
     @Transactional
@@ -99,9 +119,12 @@ public class OrganizationService {
         if (repository.hasActiveDescendant(unit.getId(), unit.getPath())) {
             throw new InvalidStateException(ACTIVE_DESCENDANT);
         }
+        Map<String, ?> before = Map.of("active", unit.isActive());
         unit.deactivate();
         flushMutation();
-        return toNode(unit);
+        OrganizationNode result = toNode(unit);
+        record("ORGANIZATION_DEACTIVATED", id, before, Map.of("active", false));
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -199,5 +222,21 @@ public class OrganizationService {
     private static OrganizationNode toNode(OrganizationUnit unit) {
         return new OrganizationNode(unit.getId(), unit.getParentId(), unit.getCode(), unit.getName(),
                 unit.getPath(), unit.isActive(), unit.getVersion());
+    }
+
+    private void record(String event, UUID id, Map<String, ?> before, Map<String, ?> after) {
+        audit.record(new AuditCommand(actor.actorId(), event, "ORGANIZATION", id,
+                before, after, actor.ipAddress(), null));
+    }
+
+    private static Map<String, ?> organizationState(OrganizationNode node) {
+        return mapNullable("code", node.code(), "name", node.name(), "parentId", node.parentId(),
+                "active", node.active());
+    }
+
+    private static Map<String, ?> mapNullable(Object... entries) {
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < entries.length; i += 2) result.put((String) entries[i], entries[i + 1]);
+        return result;
     }
 }
