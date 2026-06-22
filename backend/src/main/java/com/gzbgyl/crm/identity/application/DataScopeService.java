@@ -19,6 +19,8 @@ public class DataScopeService {
     private static final Set<String> SENSITIVE_ROLES = Set.of(
             "SALES", "SALES_MANAGER", "OPERATIONS_VIEWER", "FINANCE_VIEWER",
             "EXECUTIVE_VIEWER", "SYSTEM_ADMIN");
+    private static final Set<String> COLLABORATION_ROLES = Set.of(
+            "PRESALES_TECH", "PROJECT_MANAGER");
 
     private final AppUserRepository userRepository;
     private final OrganizationUnitRepository organizationRepository;
@@ -46,7 +48,7 @@ public class DataScopeService {
         Set<UUID> organizations = permissions.contains("opportunity:read:department")
                 ? organizationRepository.findActiveEffectiveSubtreeIds(user.getOrganizationUnitId())
                 : Set.of();
-        Set<UUID> opportunities = permissions.contains("opportunity:read:assigned")
+        Set<UUID> opportunities = roles.stream().anyMatch(COLLABORATION_ROLES::contains)
                 ? sanitizedExplicitOpportunities(userId)
                 : Set.of();
         boolean companyRead = permissions.contains("performance:read:company")

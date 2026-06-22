@@ -47,6 +47,7 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
     void salespersonReceivesOnlyOwnScopeAndSensitiveFields() {
         OrganizationNode department = organizations.createRoot("SALES", "Sales");
         UserSummary salesperson = user("sales", department.id(), "SALES");
+        when(explicitScopes.opportunityIds(salesperson.id())).thenReturn(Set.of(UUID.randomUUID()));
 
         DataScope scope = service.resolve(salesperson.id());
 
@@ -80,7 +81,7 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
         OrganizationNode department = organizations.createRoot("DELIVERY", "Delivery");
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
-        for (String role : List.of("PRESALES_TECH", "PROJECT_MANAGER", "OPERATIONS_VIEWER")) {
+        for (String role : List.of("PRESALES_TECH", "PROJECT_MANAGER")) {
             UserSummary user = user(role.toLowerCase(), department.id(), role);
             when(explicitScopes.opportunityIds(user.id())).thenReturn(Set.of(first, second));
 
@@ -89,8 +90,21 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
             assertThat(scope.explicitOpportunityIds()).containsExactlyInAnyOrder(first, second);
             assertThat(scope.organizationUnitIds()).isEmpty();
             assertThat(scope.companyRead()).isFalse();
-            assertThat(scope.sensitiveFinancialFields()).isEqualTo(role.equals("OPERATIONS_VIEWER"));
+            assertThat(scope.sensitiveFinancialFields()).isFalse();
         }
+    }
+
+    @Test
+    void operationsRoleDoesNotImplyExplicitCollaborationScope() {
+        OrganizationNode department = organizations.createRoot("OPERATIONS", "Operations");
+        UserSummary operations = user("operations", department.id(), "OPERATIONS_VIEWER");
+        when(explicitScopes.opportunityIds(operations.id())).thenReturn(Set.of(UUID.randomUUID()));
+
+        DataScope scope = service.resolve(operations.id());
+
+        assertThat(scope.explicitOpportunityIds()).isEmpty();
+        assertThat(scope.companyRead()).isFalse();
+        assertThat(scope.sensitiveFinancialFields()).isTrue();
     }
 
     @Test
@@ -119,15 +133,14 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
     @Test
     void roleCombinationUnionsIndependentAccessDeterministically() {
         OrganizationNode department = organizations.createRoot("SALES", "Sales");
-        OrganizationNode child = organizations.createChild(department.id(), "CHILD", "Child");
-        UserSummary combined = user("combined", department.id(), "SALES", "SALES_MANAGER", "PRESALES_TECH");
+        UserSummary combined = user("combined", department.id(), "SALES", "PRESALES_TECH");
         UUID assigned = UUID.randomUUID();
         when(explicitScopes.opportunityIds(combined.id())).thenReturn(Set.of(assigned));
 
         DataScope scope = service.resolve(combined.id());
 
         assertThat(scope.canReadOwnedBy(combined.id())).isTrue();
-        assertThat(scope.organizationUnitIds()).containsExactlyInAnyOrder(department.id(), child.id());
+        assertThat(scope.organizationUnitIds()).isEmpty();
         assertThat(scope.explicitOpportunityIds()).containsExactly(assigned);
         assertThat(scope.companyRead()).isFalse();
         assertThat(scope.sensitiveFinancialFields()).isTrue();
@@ -193,7 +206,7 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void nextResolveReflectsHierarchyMoveAndRoleReplacement() {
+    void nextResolveReflectsHierarchyMoveWithoutStaleDepartmentScope() {
         OrganizationNode first = organizations.createRoot("FIRST", "First");
         OrganizationNode second = organizations.createRoot("SECOND", "Second");
         OrganizationNode team = organizations.createChild(first.id(), "TEAM", "Team");
@@ -202,7 +215,22 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
         assertThat(service.resolve(manager.id()).organizationUnitIds()).contains(team.id());
 
         organizations.move(team.id(), second.id(), team.version());
-        UserSummary replaced = users.assignRoles(manager.id(), Set.of("EXECUTIVE_VIEWER"), manager.version());
+
+        DataScope refreshed = service.resolve(manager.id());
+        assertThat(refreshed.organizationUnitIds()).containsExactly(first.id());
+        assertThat(refreshed.companyRead()).isFalse();
+    }
+
+    @Test
+    void nextResolveReflectsRoleReplacementWithoutStaleDepartmentScope() {
+        OrganizationNode department = organizations.createRoot("SALES", "Sales");
+        organizations.createChild(department.id(), "TEAM", "Team");
+        UserSummary manager = user("manager", department.id(), "SALES_MANAGER");
+
+        assertThat(service.resolve(manager.id()).organizationUnitIds()).isNotEmpty();
+
+        UserSummary replaced = users.assignRoles(
+                manager.id(), Set.of("EXECUTIVE_VIEWER"), manager.version());
 
         DataScope refreshed = service.resolve(replaced.id());
         assertThat(refreshed.organizationUnitIds()).isEmpty();
