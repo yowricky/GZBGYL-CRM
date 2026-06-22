@@ -51,10 +51,12 @@ class AuditServiceTest extends PostgresIntegrationTest {
     void recursivelyRedactsSecretsWithoutMutatingCallerData() {
         Map<String, Object> nested = new LinkedHashMap<>();
         List<Object> values = new ArrayList<>();
-        values.add(Map.of("Authorization", "Bearer raw", "safe", "visible"));
-        values.add(new Object[] {Map.of("sessionId", "raw-session"), "plain"});
+        values.add(Map.of("Authorization", "Bearer raw", "authHeader", "raw-header",
+                "safe", "visible"));
+        values.add(new Object[] {Map.of("sessionId", "raw-session",
+                "oauthClient", "raw-client"), "plain"});
         nested.put("profile", Map.of("PasswordHash", "raw-hash", "content_hash", "raw-digest",
-                "name", "Alice"));
+                "auth", "raw-auth", "name", "Alice"));
         nested.put("items", values);
 
         AuditLog log = service.record(new AuditCommand(null, "USER_UPDATED", "USER",
@@ -63,12 +65,19 @@ class AuditServiceTest extends PostgresIntegrationTest {
         JsonNode json = log.afterJson();
         assertThat(json.at("/profile/PasswordHash").asText()).isEqualTo("[REDACTED]");
         assertThat(json.at("/profile/content_hash").asText()).isEqualTo("[REDACTED]");
+        assertThat(json.at("/profile/auth").asText()).isEqualTo("[REDACTED]");
         assertThat(json.at("/items/0/Authorization").asText()).isEqualTo("[REDACTED]");
+        assertThat(json.at("/items/0/authHeader").asText()).isEqualTo("[REDACTED]");
         assertThat(json.at("/items/1/0/sessionId").asText()).isEqualTo("[REDACTED]");
+        assertThat(json.at("/items/1/0/oauthClient").asText()).isEqualTo("[REDACTED]");
         assertThat(json.at("/profile/name").asText()).isEqualTo("Alice");
         assertThat(((Map<?, ?>) nested.get("profile")).get("PasswordHash")).isEqualTo("raw-hash");
         assertThat(((Map<?, ?>) nested.get("profile")).get("content_hash")).isEqualTo("raw-digest");
+        assertThat(((Map<?, ?>) nested.get("profile")).get("auth")).isEqualTo("raw-auth");
         assertThat(((Map<?, ?>) values.get(0)).get("Authorization")).isEqualTo("Bearer raw");
+        assertThat(((Map<?, ?>) values.get(0)).get("authHeader")).isEqualTo("raw-header");
+        assertThat(((Map<?, ?>) ((Object[]) values.get(1))[0]).get("oauthClient"))
+                .isEqualTo("raw-client");
     }
 
     @Test

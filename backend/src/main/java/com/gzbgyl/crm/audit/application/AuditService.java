@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuditService {
     private static final Pattern NAME = Pattern.compile("[A-Z][A-Z0-9_]*");
-    private static final List<String> SENSITIVE = List.of("password", "hash", "secret", "token",
+    private static final List<String> SENSITIVE = List.of("password", "hash", "secret", "token", "auth",
             "authorization", "cookie", "session", "credential");
     private final AuditLogRepository repository;
     private final ObjectMapper mapper;
