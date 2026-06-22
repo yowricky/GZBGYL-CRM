@@ -18,6 +18,8 @@ spring:
       password: ${REDIS_PASSWORD}
   session:
     store-type: redis
+    redis:
+      repository-type: indexed
   servlet:
     multipart:
       max-file-size: ${MULTIPART_MAX_FILE_SIZE:20MB}

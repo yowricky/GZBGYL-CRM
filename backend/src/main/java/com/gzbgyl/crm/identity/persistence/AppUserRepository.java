@@ -15,4 +15,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     @Query("select user from AppUser user where user.id = :id")
     Optional<AppUser> findDetailedById(@Param("id") UUID id);
+
+    @EntityGraph(attributePaths = {"roles", "roles.permissions"})
+    Optional<AppUser> findByNormalizedUsername(String normalizedUsername);
 }
