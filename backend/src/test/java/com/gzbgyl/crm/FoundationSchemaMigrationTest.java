@@ -20,7 +20,7 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
     void appliesSecurityScopePermissionMigration() {
         assertThat(migrationJdbc().queryForObject(
                 "select max(version) from flyway_schema_history where success", String.class))
-                .isEqualTo("5");
+                .isEqualTo("6");
         assertThat(jdbcTemplate.queryForList(
                 "select code from permission where code like 'financial:%' order by code",
                 String.class)).containsExactly(
@@ -140,6 +140,25 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update(
                 insert, "contract", "abc", "padded-invalid-digest-object"))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void attachmentCleanupStateSupportsPendingDeleteRetries() {
+        List<String> columns = jdbcTemplate.queryForList("""
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'attachment'
+                """, String.class);
+        List<String> indexes = jdbcTemplate.queryForList("""
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND tablename = 'attachment'
+                """, String.class);
+
+        assertThat(columns).contains("storage_deleted_at", "storage_delete_attempts");
+        assertThat(indexes).contains("idx_attachment_pending_storage_delete");
     }
 
     @Test

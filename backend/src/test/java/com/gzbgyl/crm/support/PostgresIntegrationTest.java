@@ -36,6 +36,10 @@ public abstract class PostgresIntegrationTest {
         registry.add("spring.data.redis.host", () -> "127.0.0.1");
         registry.add("spring.data.redis.port", () -> 6379);
         registry.add("spring.data.redis.password", () -> "test-redis-password");
+        registry.add("app.minio.endpoint", () -> "http://127.0.0.1:9000");
+        registry.add("app.minio.bucket", () -> "crm-attachments-test");
+        registry.add("app.minio.access-key", () -> "test-access-key");
+        registry.add("app.minio.secret-key", () -> "test-secret-key");
     }
 
     private static void ensureApplicationRole() {

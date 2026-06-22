@@ -56,3 +56,8 @@ app:
     bucket: ${MINIO_BUCKET}
     access-key: ${MINIO_APP_ACCESS_KEY}
     secret-key: ${MINIO_APP_SECRET_KEY}
+  attachments:
+    max-size-bytes: ${ATTACHMENT_MAX_SIZE_BYTES:20971520}
+    allowed-content-types: ${ATTACHMENT_ALLOWED_CONTENT_TYPES:text/plain,image/png,image/jpeg,application/pdf}
+    cleanup-batch-size: ${ATTACHMENT_CLEANUP_BATCH_SIZE:50}
+    cleanup-delay-ms: ${ATTACHMENT_CLEANUP_DELAY_MS:60000}
