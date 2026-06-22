@@ -2,6 +2,7 @@ package com.gzbgyl.crm.identity.persistence;
 
 import com.gzbgyl.crm.identity.domain.OrganizationUnit;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -13,6 +14,21 @@ public interface OrganizationUnitRepository extends JpaRepository<OrganizationUn
     boolean existsByCode(String code);
 
     List<OrganizationUnit> findByPathStartingWithOrderByPathAsc(String pathPrefix);
+
+    @Query(value = """
+            select candidate.id
+            from organization_unit root
+            join organization_unit candidate on candidate.path like root.path || '%'
+            where root.id = :rootId
+              and candidate.active = true
+              and not exists (
+                  select 1
+                  from organization_unit inactive_ancestor
+                  where inactive_ancestor.active = false
+                    and candidate.path like inactive_ancestor.path || '%'
+              )
+            """, nativeQuery = true)
+    Set<UUID> findActiveEffectiveSubtreeIds(@Param("rootId") UUID rootId);
 
     @Query(value = "select pg_advisory_xact_lock(684729104531)", nativeQuery = true)
     void acquireHierarchyMutationLock();
