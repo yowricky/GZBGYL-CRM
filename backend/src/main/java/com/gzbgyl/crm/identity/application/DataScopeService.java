@@ -2,13 +2,14 @@ package com.gzbgyl.crm.identity.application;
 
 import com.gzbgyl.crm.identity.domain.AppUser;
 import com.gzbgyl.crm.identity.domain.Permission;
-import com.gzbgyl.crm.identity.domain.Role;
 import com.gzbgyl.crm.identity.persistence.AppUserRepository;
 import com.gzbgyl.crm.identity.persistence.OrganizationUnitRepository;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,11 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class DataScopeService {
 
     private static final String USER_UNAVAILABLE = "用户不存在或已停用";
-    private static final Set<String> SENSITIVE_ROLES = Set.of(
-            "SALES", "SALES_MANAGER", "OPERATIONS_VIEWER", "FINANCE_VIEWER",
-            "EXECUTIVE_VIEWER", "SYSTEM_ADMIN");
-    private static final Set<String> COLLABORATION_ROLES = Set.of(
-            "PRESALES_TECH", "PROJECT_MANAGER");
+    private static final String MULTIPLE_PROVIDERS =
+            "Multiple ExplicitScopeProvider beans configured; exactly one is supported";
 
     private final AppUserRepository userRepository;
     private final OrganizationUnitRepository organizationRepository;
@@ -28,10 +26,14 @@ public class DataScopeService {
 
     public DataScopeService(AppUserRepository userRepository,
             OrganizationUnitRepository organizationRepository,
-            ExplicitScopeProvider explicitScopeProvider) {
+            ObjectProvider<ExplicitScopeProvider> explicitScopeProviders) {
         this.userRepository = userRepository;
         this.organizationRepository = organizationRepository;
-        this.explicitScopeProvider = explicitScopeProvider;
+        List<ExplicitScopeProvider> providers = explicitScopeProviders.orderedStream().toList();
+        if (providers.size() > 1) {
+            throw new IllegalStateException(MULTIPLE_PROVIDERS);
+        }
+        this.explicitScopeProvider = providers.isEmpty() ? userId -> Set.of() : providers.getFirst();
     }
 
     @Transactional(readOnly = true)
@@ -39,22 +41,26 @@ public class DataScopeService {
         AppUser user = userRepository.findDetailedById(userId)
                 .filter(AppUser::isActive)
                 .orElseThrow(() -> new DataScopeUnavailableException(USER_UNAVAILABLE));
-        Set<String> roles = user.getRoles().stream().map(Role::getCode).collect(Collectors.toSet());
         Set<String> permissions = user.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
                 .map(Permission::getCode)
                 .collect(Collectors.toSet());
 
-        Set<UUID> organizations = permissions.contains("opportunity:read:department")
+        boolean departmentRead = permissions.contains("opportunity:read:department");
+        boolean financialDepartmentRead = permissions.contains("financial:read:department");
+        Set<UUID> effectiveHierarchy = departmentRead || financialDepartmentRead
                 ? organizationRepository.findActiveEffectiveSubtreeIds(user.getOrganizationUnitId())
                 : Set.of();
-        Set<UUID> opportunities = roles.stream().anyMatch(COLLABORATION_ROLES::contains)
-                ? sanitizedExplicitOpportunities(userId)
-                : Set.of();
-        boolean companyRead = permissions.contains("performance:read:company")
-                || permissions.contains("system:admin");
-        boolean sensitive = roles.stream().anyMatch(SENSITIVE_ROLES::contains);
-        return new DataScope(userId, organizations, opportunities, companyRead, sensitive);
+        return new DataScope(
+                userId,
+                permissions.contains("opportunity:read:own"),
+                departmentRead ? effectiveHierarchy : Set.of(),
+                permissions.contains("opportunity:read:assigned")
+                        ? sanitizedExplicitOpportunities(userId) : Set.of(),
+                permissions.contains("opportunity:read:company"),
+                permissions.contains("financial:read:own"),
+                financialDepartmentRead ? effectiveHierarchy : Set.of(),
+                permissions.contains("financial:read:company"));
     }
 
     private Set<UUID> sanitizedExplicitOpportunities(UUID userId) {

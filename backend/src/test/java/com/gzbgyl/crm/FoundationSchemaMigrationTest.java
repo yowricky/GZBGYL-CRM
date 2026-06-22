@@ -17,6 +17,19 @@ class FoundationSchemaMigrationTest extends PostgresIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
+    void appliesSecurityScopePermissionMigration() {
+        assertThat(jdbcTemplate.queryForObject(
+                "select max(version) from flyway_schema_history where success", String.class))
+                .isEqualTo("3");
+        assertThat(jdbcTemplate.queryForList(
+                "select code from permission where code like 'financial:%' order by code",
+                String.class)).containsExactly(
+                        "financial:read:company",
+                        "financial:read:department",
+                        "financial:read:own");
+    }
+
+    @Test
     void flywayCreatesFoundationTables() {
         List<String> tables = jdbcTemplate.queryForList("""
                 SELECT table_name

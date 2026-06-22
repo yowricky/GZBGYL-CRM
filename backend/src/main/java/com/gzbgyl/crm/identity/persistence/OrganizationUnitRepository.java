@@ -16,17 +16,30 @@ public interface OrganizationUnitRepository extends JpaRepository<OrganizationUn
     List<OrganizationUnit> findByPathStartingWithOrderByPathAsc(String pathPrefix);
 
     @Query(value = """
-            select candidate.id
-            from organization_unit root
-            join organization_unit candidate on candidate.path like root.path || '%'
-            where root.id = :rootId
-              and candidate.active = true
-              and not exists (
-                  select 1
-                  from organization_unit inactive_ancestor
-                  where inactive_ancestor.active = false
-                    and candidate.path like inactive_ancestor.path || '%'
-              )
+            with recursive ancestors as (
+                select id, parent_id, active
+                from organization_unit
+                where id = :rootId
+                union all
+                select parent.id, parent.parent_id, parent.active
+                from organization_unit parent
+                join ancestors child on child.parent_id = parent.id
+            ),
+            root_status as (
+                select coalesce(bool_and(active), false) as active
+                from ancestors
+            ),
+            subtree as (
+                select root.id, root.active and root_status.active as active_path
+                from organization_unit root
+                cross join root_status
+                where root.id = :rootId
+                union all
+                select child.id, parent.active_path and child.active
+                from organization_unit child
+                join subtree parent on child.parent_id = parent.id
+            )
+            select id from subtree where active_path
             """, nativeQuery = true)
     Set<UUID> findActiveEffectiveSubtreeIds(@Param("rootId") UUID rootId);
 

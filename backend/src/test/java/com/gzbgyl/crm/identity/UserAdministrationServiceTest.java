@@ -75,25 +75,28 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
         assertThat(jdbcTemplate.queryForList("select code from permission", String.class))
                 .containsExactlyInAnyOrder(
                         "system:admin", "opportunity:read:own", "opportunity:read:department",
-                        "opportunity:read:assigned", "opportunity:technical:update",
+                        "opportunity:read:assigned", "opportunity:read:company",
+                        "opportunity:technical:update", "financial:read:own",
+                        "financial:read:department", "financial:read:company",
                         "lead:assign:department", "project:read:assigned",
                         "performance:read:authorized", "performance:read:company",
                         "contract:read:authorized", "payment:read:authorized");
 
         Map<String, Set<String>> expectedMappings = Map.of(
                 "SYSTEM_ADMIN", Set.of("system:admin"),
-                "SALES", Set.of("opportunity:read:own", "opportunity:read:assigned",
+                "SALES", Set.of("opportunity:read:own", "financial:read:own",
                         "contract:read:authorized", "payment:read:authorized"),
                 "SALES_MANAGER", Set.of("opportunity:read:department", "lead:assign:department",
                         "performance:read:authorized", "contract:read:authorized",
-                        "payment:read:authorized"),
+                        "payment:read:authorized", "financial:read:department"),
                 "PRESALES_TECH", Set.of("opportunity:read:assigned", "opportunity:technical:update"),
                 "PROJECT_MANAGER", Set.of("opportunity:read:assigned", "project:read:assigned"),
-                "OPERATIONS_VIEWER", Set.of("opportunity:read:assigned", "project:read:assigned"),
+                "OPERATIONS_VIEWER", Set.of("project:read:assigned", "financial:read:department"),
                 "FINANCE_VIEWER", Set.of("performance:read:authorized", "contract:read:authorized",
-                        "payment:read:authorized"),
+                        "payment:read:authorized", "financial:read:department"),
                 "EXECUTIVE_VIEWER", Set.of("performance:read:company", "contract:read:authorized",
-                        "payment:read:authorized"));
+                        "payment:read:authorized", "opportunity:read:company",
+                        "financial:read:company"));
         expectedMappings.forEach((role, permissions) ->
                 assertThat(permissionCodes(role)).as(role).isEqualTo(permissions));
     }

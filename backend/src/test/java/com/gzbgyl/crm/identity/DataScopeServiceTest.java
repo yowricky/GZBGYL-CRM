@@ -25,6 +25,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 class DataScopeServiceTest extends PostgresIntegrationTest {
@@ -33,6 +35,7 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
     @Autowired private OrganizationService organizations;
     @Autowired private UserAdministrationService users;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private PlatformTransactionManager transactionManager;
 
     @MockitoBean private ExplicitScopeProvider explicitScopes;
 
@@ -55,7 +58,10 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
         assertThat(scope.organizationUnitIds()).isEmpty();
         assertThat(scope.explicitOpportunityIds()).isEmpty();
         assertThat(scope.companyRead()).isFalse();
-        assertThat(scope.sensitiveFinancialFields()).isTrue();
+        assertThat(scope.ownRead()).isTrue();
+        assertThat(scope.financialOwnRead()).isTrue();
+        assertThat(scope.canReadSensitiveFinancial(
+                salesperson.id(), department.id(), UUID.randomUUID())).isTrue();
         assertThat(scope.canReadOwnedBy(salesperson.id())).isTrue();
         assertThat(scope.canReadOwnedBy(UUID.randomUUID())).isFalse();
     }
@@ -73,7 +79,10 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
         assertThat(scope.organizationUnitIds()).containsExactlyInAnyOrder(sales.id(), nested.id())
                 .doesNotContain(company.id(), sibling.id());
         assertThat(scope.companyRead()).isFalse();
-        assertThat(scope.sensitiveFinancialFields()).isTrue();
+        assertThat(scope.financialOrganizationUnitIds())
+                .containsExactlyInAnyOrder(sales.id(), nested.id());
+        assertThat(scope.canReadSensitiveFinancial(
+                UUID.randomUUID(), nested.id(), UUID.randomUUID())).isTrue();
     }
 
     @Test
@@ -90,7 +99,8 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
             assertThat(scope.explicitOpportunityIds()).containsExactlyInAnyOrder(first, second);
             assertThat(scope.organizationUnitIds()).isEmpty();
             assertThat(scope.companyRead()).isFalse();
-            assertThat(scope.sensitiveFinancialFields()).isFalse();
+            assertThat(scope.canReadSensitiveFinancial(
+                    UUID.randomUUID(), department.id(), first)).isFalse();
         }
     }
 
@@ -104,7 +114,9 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
 
         assertThat(scope.explicitOpportunityIds()).isEmpty();
         assertThat(scope.companyRead()).isFalse();
-        assertThat(scope.sensitiveFinancialFields()).isTrue();
+        assertThat(scope.financialOrganizationUnitIds()).contains(department.id());
+        assertThat(scope.canReadSensitiveFinancial(
+                UUID.randomUUID(), department.id(), UUID.randomUUID())).isFalse();
     }
 
     @Test
@@ -117,17 +129,30 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
         assertThat(scope.organizationUnitIds()).isEmpty();
         assertThat(scope.explicitOpportunityIds()).isEmpty();
         assertThat(scope.companyRead()).isFalse();
-        assertThat(scope.sensitiveFinancialFields()).isTrue();
+        assertThat(scope.financialOrganizationUnitIds()).contains(department.id());
+        assertThat(scope.canReadSensitiveFinancial(
+                UUID.randomUUID(), department.id(), UUID.randomUUID())).isFalse();
     }
 
     @Test
-    void executiveAndSystemAdministratorReceiveCompanyScope() {
+    void executiveReceivesCompanyRecordAndFinancialScopeButSystemAdministratorDoesNot() {
         OrganizationNode department = organizations.createRoot("HQ", "Headquarters");
-        for (String role : List.of("EXECUTIVE_VIEWER", "SYSTEM_ADMIN")) {
-            DataScope scope = service.resolve(user(role.toLowerCase(), department.id(), role).id());
-            assertThat(scope.companyRead()).as(role).isTrue();
-            assertThat(scope.sensitiveFinancialFields()).as(role).isTrue();
-        }
+        DataScope executive = service.resolve(
+                user("executive", department.id(), "EXECUTIVE_VIEWER").id());
+        UUID opportunity = UUID.randomUUID();
+        assertThat(executive.companyRead()).isTrue();
+        assertThat(executive.financialCompanyRead()).isTrue();
+        assertThat(executive.canReadSensitiveFinancial(
+                UUID.randomUUID(), UUID.randomUUID(), opportunity)).isTrue();
+
+        DataScope administrator = service.resolve(
+                user("administrator", department.id(), "SYSTEM_ADMIN").id());
+        assertThat(administrator.ownRead()).isFalse();
+        assertThat(administrator.organizationUnitIds()).isEmpty();
+        assertThat(administrator.explicitOpportunityIds()).isEmpty();
+        assertThat(administrator.companyRead()).isFalse();
+        assertThat(administrator.canReadSensitiveFinancial(
+                administrator.userId(), department.id(), opportunity)).isFalse();
     }
 
     @Test
@@ -143,7 +168,12 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
         assertThat(scope.organizationUnitIds()).isEmpty();
         assertThat(scope.explicitOpportunityIds()).containsExactly(assigned);
         assertThat(scope.companyRead()).isFalse();
-        assertThat(scope.sensitiveFinancialFields()).isTrue();
+        assertThat(scope.canReadSensitiveFinancial(
+                combined.id(), department.id(), UUID.randomUUID())).isTrue();
+        assertThat(scope.canReadRecord(
+                UUID.randomUUID(), UUID.randomUUID(), assigned)).isTrue();
+        assertThat(scope.canReadSensitiveFinancial(
+                UUID.randomUUID(), UUID.randomUUID(), assigned)).isFalse();
     }
 
     @Test
@@ -235,6 +265,36 @@ class DataScopeServiceTest extends PostgresIntegrationTest {
         DataScope refreshed = service.resolve(replaced.id());
         assertThat(refreshed.organizationUnitIds()).isEmpty();
         assertThat(refreshed.companyRead()).isTrue();
+    }
+
+    @Test
+    void currentPermissionMappingsDriveScopeWithoutRoleNameAllowLists() {
+        OrganizationNode department = organizations.createRoot("CUSTOM", "Custom");
+        UserSummary user = user("custom", department.id(), "PRESALES_TECH");
+        UUID assigned = UUID.randomUUID();
+        when(explicitScopes.opportunityIds(user.id())).thenReturn(Set.of(assigned));
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcTemplate.update("""
+                    delete from role_permission
+                    where role_id = (select id from role where code = 'PRESALES_TECH')
+                      and permission_id = (select id from permission where code = 'opportunity:read:assigned')
+                    """);
+            jdbcTemplate.update("""
+                    insert into role_permission (role_id, permission_id)
+                    select role.id, permission.id
+                    from role, permission
+                    where role.code = 'PRESALES_TECH'
+                      and permission.code in ('opportunity:read:company', 'financial:read:company')
+                    on conflict do nothing
+                    """);
+
+            DataScope remapped = service.resolve(user.id());
+            assertThat(remapped.explicitOpportunityIds()).isEmpty();
+            assertThat(remapped.companyRead()).isTrue();
+            assertThat(remapped.financialCompanyRead()).isTrue();
+            status.setRollbackOnly();
+        });
     }
 
     private UserSummary user(String username, UUID organizationId, String... roles) {
