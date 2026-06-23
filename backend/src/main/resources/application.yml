@@ -47,6 +47,8 @@ management:
         include: health,info
 
 app:
+  bootstrap:
+    initial-admin-password: ${INITIAL_ADMIN_PASSWORD:}
   security:
     csrf-cookie-secure: ${CSRF_COOKIE_SECURE:true}
     csrf-cookie-same-site: ${CSRF_COOKIE_SAME_SITE:Lax}

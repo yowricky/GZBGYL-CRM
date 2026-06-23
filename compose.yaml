@@ -95,7 +95,6 @@ services:
         condition: service_healthy
 
   backend:
-    profiles: ["application"]
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -136,16 +135,23 @@ services:
       retries: 10
 
   frontend:
-    profiles: ["application"]
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    networks: [private]
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8081:80"
+    networks: [edge, private]
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 networks:
+  edge:
   private:
     internal: true
 
