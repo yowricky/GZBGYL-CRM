@@ -8,10 +8,11 @@ export const http = axios.create({
 })
 
 const unsafeMethods = new Set(['post', 'put', 'patch', 'delete'])
+const csrfManagedUrls = new Set(['/auth/csrf', '/auth/login', '/auth/logout'])
 
 http.interceptors.request.use(async (config) => {
   const method = config.method?.toLowerCase()
-  if (method && unsafeMethods.has(method) && config.url !== '/auth/csrf') {
+  if (method && unsafeMethods.has(method) && config.url && !csrfManagedUrls.has(config.url)) {
     await http.get('/auth/csrf')
   }
   return config

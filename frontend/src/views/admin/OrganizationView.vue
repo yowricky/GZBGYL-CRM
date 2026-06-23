@@ -36,7 +36,7 @@ const moveTargets = computed(() => {
   if (!selected.value) {
     return flatNodes.value
   }
-  const blockedPath = `${selected.value.path}/`
+  const blockedPath = selected.value.path
   return flatNodes.value.filter((node) => node.id !== selected.value?.id && !node.path.startsWith(blockedPath))
 })
 
