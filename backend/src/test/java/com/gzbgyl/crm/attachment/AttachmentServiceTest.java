@@ -14,6 +14,7 @@ import com.gzbgyl.crm.shared.api.ConflictException;
 import com.gzbgyl.crm.shared.api.InvalidRequestException;
 import com.gzbgyl.crm.shared.api.ResourceNotFoundException;
 import com.gzbgyl.crm.support.PostgresIntegrationTest;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +34,8 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @TestPropertySource(properties = {
         "app.attachments.max-size-bytes=12",
@@ -44,6 +47,7 @@ class AttachmentServiceTest extends PostgresIntegrationTest {
     @Autowired AttachmentRepository repository;
     @Autowired AuditService audit;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PlatformTransactionManager transactionManager;
     @Autowired FakeStorage storage;
     @Autowired MutableAuthorizer authorizer;
 
@@ -74,12 +78,12 @@ class AttachmentServiceTest extends PostgresIntegrationTest {
         byte[] bytes = "hello".getBytes(StandardCharsets.UTF_8);
 
         var uploaded = service.upload(actorId, "deal", ownerId,
-                new MockMultipartFile("file", " Contract\r\n2026.txt ", "text/plain", bytes));
+                new MockMultipartFile("file", " Contract 2026.txt ", "text/plain", bytes));
 
         var found = repository.findById(uploaded.id()).orElseThrow();
         assertThat(found.getOwnerType()).isEqualTo("deal");
         assertThat(found.getOwnerId()).isEqualTo(ownerId);
-        assertThat(found.getOriginalFilename()).isEqualTo("Contract  2026.txt");
+        assertThat(found.getOriginalFilename()).isEqualTo("Contract 2026.txt");
         assertThat(found.getContentType()).isEqualTo("text/plain");
         assertThat(found.getSizeBytes()).isEqualTo(bytes.length);
         assertThat(found.getSha256()).isEqualTo(sha256(bytes));
@@ -121,6 +125,10 @@ class AttachmentServiceTest extends PostgresIntegrationTest {
                 .isInstanceOf(InvalidRequestException.class);
         assertThatThrownBy(() -> service.upload(actorId, "deal", ownerId, file("a.txt", "application/x-msdownload", "hello")))
                 .isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> service.upload(actorId, "deal", ownerId, file("../a.txt", "text/plain", "hello")))
+                .isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> service.upload(actorId, "deal", ownerId, file("bad\r\nname.txt", "text/plain", "hello")))
+                .isInstanceOf(InvalidRequestException.class);
         assertThat(storage.objects).isEmpty();
     }
 
@@ -141,12 +149,30 @@ class AttachmentServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void auditFailureDuringUploadRollsBackMetadataAndDeletesUploadedOrphan() {
+        AuditService failingAudit = new AuditService(null, new ObjectMapper()) {
+            @Override public com.gzbgyl.crm.audit.domain.AuditLog record(com.gzbgyl.crm.audit.application.AuditCommand command) {
+                throw new DataAccessResourceFailureException("audit store unavailable");
+            }
+        };
+        AttachmentService failingService = new AttachmentService(repository, java.util.List.of(authorizer), storage,
+                failingAudit, transactionManager, 12, java.util.Set.of("text/plain"));
+
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                failingService.upload(actorId, "deal", ownerId, file("a.txt", "text/plain", "hello"))))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        assertThat(storage.objects).isEmpty();
+        assertThat(repository.findAll()).isEmpty();
+    }
+
+    @Test
     void downloadReturnsSafeHeadersAndExactBytesButDeletedOrMissingObjectsAreUnavailable() throws Exception {
         var uploaded = service.upload(actorId, "deal", ownerId,
-                new MockMultipartFile("file", "../bad\r\nname.txt", "text/plain", "hello".getBytes(StandardCharsets.UTF_8)));
+                new MockMultipartFile("file", "bad name.txt", "text/plain", "hello".getBytes(StandardCharsets.UTF_8)));
 
         var download = service.download(actorId, uploaded.id());
-        assertThat(download.filename()).isEqualTo("bad  name.txt");
+        assertThat(download.filename()).isEqualTo("bad name.txt");
         assertThat(download.contentType()).isEqualTo("text/plain");
         assertThat(download.sizeBytes()).isEqualTo(5);
         assertThat(download.stream().readAllBytes()).isEqualTo("hello".getBytes(StandardCharsets.UTF_8));
@@ -181,6 +207,28 @@ class AttachmentServiceTest extends PostgresIntegrationTest {
         assertThat(service.cleanupPendingDeletes(10)).isEqualTo(1);
         assertThat(service.cleanupPendingDeletes(10)).isZero();
         assertThat(repository.findById(uploaded.id()).orElseThrow().getStorageDeletedAt()).isNotNull();
+    }
+
+    @Test
+    void auditFailureDuringDeleteDoesNotDeleteStorageOrCommitSoftDelete() {
+        var uploaded = service.upload(actorId, "deal", ownerId, file("a.txt", "text/plain", "hello"));
+        var attachment = repository.findById(uploaded.id()).orElseThrow();
+        byte[] bytes = storage.bytes(attachment.getStorageKey());
+        AuditService failingAudit = new AuditService(null, new ObjectMapper()) {
+            @Override public com.gzbgyl.crm.audit.domain.AuditLog record(com.gzbgyl.crm.audit.application.AuditCommand command) {
+                throw new DataAccessResourceFailureException("audit store unavailable");
+            }
+        };
+        AttachmentService failingService = new AttachmentService(repository, java.util.List.of(authorizer), storage,
+                failingAudit, transactionManager, 12, java.util.Set.of("text/plain"));
+
+        assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                failingService.delete(actorId, uploaded.id(), uploaded.version())))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+
+        var stillActive = repository.findById(uploaded.id()).orElseThrow();
+        assertThat(stillActive.isDeleted()).isFalse();
+        assertThat(storage.bytes(stillActive.getStorageKey())).isEqualTo(bytes);
     }
 
     @Test

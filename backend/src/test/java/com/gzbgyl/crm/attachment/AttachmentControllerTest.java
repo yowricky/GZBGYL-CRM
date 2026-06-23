@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gzbgyl.crm.attachment.application.AttachmentAuthorizer;
 import com.gzbgyl.crm.attachment.application.ObjectStorage;
 import com.gzbgyl.crm.attachment.application.StoredObject;
@@ -54,6 +55,7 @@ class AttachmentControllerTest extends PostgresIntegrationTest {
     @Autowired AttachmentRepository repository;
     @Autowired FakeStorage storage;
     @Autowired MutableAuthorizer authorizer;
+    @Autowired ObjectMapper objectMapper;
 
     UUID actorId;
     UUID ownerId;
@@ -79,7 +81,7 @@ class AttachmentControllerTest extends PostgresIntegrationTest {
 
     @Test
     void uploadReturnsStableDtoWithoutStorageKeyAndRequiresCsrf() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", "quote\r\n.txt",
+        MockMultipartFile file = new MockMultipartFile("file", "quote.txt",
                 "text/plain", "hello".getBytes(StandardCharsets.UTF_8));
 
         mvc.perform(multipart("/api/attachments")
@@ -92,7 +94,7 @@ class AttachmentControllerTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.ownerType").value("deal"))
                 .andExpect(jsonPath("$.ownerId").value(ownerId.toString()))
-                .andExpect(jsonPath("$.originalFilename").value("quote  .txt"))
+                .andExpect(jsonPath("$.originalFilename").value("quote.txt"))
                 .andExpect(jsonPath("$.sha256").isNotEmpty())
                 .andExpect(jsonPath("$.version").value(0))
                 .andExpect(jsonPath("$.storageKey").doesNotExist());
@@ -114,9 +116,9 @@ class AttachmentControllerTest extends PostgresIntegrationTest {
                         .param("ownerType", "deal")
                         .param("ownerId", ownerId.toString())
                         .with(user(principal()))
-                        .with(csrf()))
+                .with(csrf()))
                 .andReturn().getResponse().getContentAsString();
-        UUID id = UUID.fromString(response.replaceAll(".*\"id\":\"([^\"]+)\".*", "$1"));
+        UUID id = UUID.fromString(objectMapper.readTree(response).get("id").asText());
 
         mvc.perform(get("/api/attachments/{id}", id).with(user(principal())))
                 .andExpect(status().isOk())
@@ -128,6 +130,10 @@ class AttachmentControllerTest extends PostgresIntegrationTest {
                         .isEqualTo("hello".getBytes(StandardCharsets.UTF_8)));
 
         long version = repository.findById(id).orElseThrow().getVersion();
+        mvc.perform(delete("/api/attachments/{id}", id)
+                        .param("expectedVersion", Long.toString(version))
+                        .with(user(principal())))
+                .andExpect(status().isForbidden());
         mvc.perform(delete("/api/attachments/{id}", id)
                         .param("expectedVersion", Long.toString(version))
                         .with(user(principal()))

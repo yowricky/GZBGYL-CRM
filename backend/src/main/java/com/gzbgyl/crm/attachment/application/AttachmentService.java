@@ -25,6 +25,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,20 +41,28 @@ public class AttachmentService {
     private final List<AttachmentAuthorizer> authorizers;
     private final ObjectStorage storage;
     private final AuditService audit;
+    private final TransactionTemplate transactionTemplate;
     private final long maxSizeBytes;
     private final Set<String> allowedContentTypes;
 
     @Autowired
     public AttachmentService(AttachmentRepository repository, List<AttachmentAuthorizer> authorizers,
             ObjectProvider<ObjectStorage> storage, AuditService audit,
+            PlatformTransactionManager transactionManager,
             @Value("${app.attachments.max-size-bytes:20971520}") long maxSizeBytes,
             @Value("${app.attachments.allowed-content-types:text/plain,image/png,image/jpeg,application/pdf}")
             Set<String> allowedContentTypes) {
-        this(repository, authorizers, storage.getIfAvailable(), audit, maxSizeBytes, allowedContentTypes);
+        this(repository, authorizers, storage.getIfAvailable(), audit, transactionManager, maxSizeBytes, allowedContentTypes);
     }
 
     public AttachmentService(AttachmentRepository repository, List<AttachmentAuthorizer> authorizers,
             ObjectStorage storage, AuditService audit, long maxSizeBytes, Set<String> allowedContentTypes) {
+        this(repository, authorizers, storage, audit, null, maxSizeBytes, allowedContentTypes);
+    }
+
+    public AttachmentService(AttachmentRepository repository, List<AttachmentAuthorizer> authorizers,
+            ObjectStorage storage, AuditService audit, PlatformTransactionManager transactionManager,
+            long maxSizeBytes, Set<String> allowedContentTypes) {
         this.repository = repository;
         this.authorizers = List.copyOf(authorizers);
         if (this.authorizers.size() > 1) {
@@ -57,6 +70,12 @@ public class AttachmentService {
         }
         this.storage = storage;
         this.audit = audit;
+        if (transactionManager == null) {
+            this.transactionTemplate = null;
+        } else {
+            this.transactionTemplate = new TransactionTemplate(transactionManager);
+            this.transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        }
         this.maxSizeBytes = maxSizeBytes;
         this.allowedContentTypes = allowedContentTypes.stream()
                 .map(value -> value.toLowerCase(Locale.ROOT)).collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -83,21 +102,21 @@ public class AttachmentService {
                 storage.put(key, contentType, size, digesting);
             }
             digest = HexFormat.of().formatHex(sha256.digest());
-        } catch (InvalidRequestException | StorageException exception) {
+        } catch (InvalidRequestException exception) {
             throw exception;
+        } catch (StorageException exception) {
+            throw new InvalidRequestException("Attachment upload failed", exception);
         } catch (Exception exception) {
             throw new InvalidRequestException("Attachment upload failed", exception);
         }
 
+        registerAfterRollback(() -> deleteOrphan(key));
         Attachment attachment = new Attachment(validOwnerType, ownerId, filename, contentType, size, digest, key, actorId);
         try {
             repository.save(attachment);
             flushMetadata();
         } catch (RuntimeException exception) {
-            try {
-                storage.delete(key);
-            } catch (RuntimeException ignored) {
-            }
+            deleteOrphan(key);
             throw new InvalidRequestException("Attachment could not be saved", exception);
         }
         audit.record(new AuditCommand(actorId, "ATTACHMENT_UPLOADED", "ATTACHMENT", attachment.getId(),
@@ -116,6 +135,7 @@ public class AttachmentService {
         Attachment attachment = repository.findByIdAndDeletedFalse(attachmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Attachment not found"));
         requireRead(actorId, attachment.getOwnerType(), attachment.getOwnerId());
+        if (storage == null) throw new InvalidRequestException("Attachment content is unavailable");
         try {
             StoredObject object = storage.get(attachment.getStorageKey());
             return new AttachmentDownload(attachment.getOriginalFilename(), attachment.getContentType(),
@@ -137,9 +157,9 @@ public class AttachmentService {
         if (attachment.getVersion() != expectedVersion) throw new ConflictException("Attachment was modified");
         attachment.softDelete(actorId);
         repository.flush();
-        deleteStorageObject(attachment);
         audit.record(new AuditCommand(actorId, "ATTACHMENT_DELETED", "ATTACHMENT", attachment.getId(),
                 Map.of("deleted", false), Map.of("deleted", true), null, null));
+        registerAfterCommit(() -> deleteStorageObjectInNewTransaction(attachment.getId()));
         return toDto(attachment);
     }
 
@@ -153,6 +173,10 @@ public class AttachmentService {
     }
 
     private boolean deleteStorageObject(Attachment attachment) {
+        if (storage == null) {
+            attachment.markStorageDeleteFailed();
+            return false;
+        }
         try {
             storage.delete(attachment.getStorageKey());
             attachment.markStorageDeleted();
@@ -165,6 +189,46 @@ public class AttachmentService {
             attachment.markStorageDeleteFailed();
             return false;
         }
+    }
+
+    private void deleteStorageObjectInNewTransaction(UUID attachmentId) {
+        if (transactionTemplate == null) {
+            repository.findByIdForUpdate(attachmentId).ifPresent(this::deleteStorageObject);
+            return;
+        }
+        transactionTemplate.executeWithoutResult(status ->
+                repository.findByIdForUpdate(attachmentId)
+                        .filter(Attachment::isDeleted)
+                        .filter(attachment -> attachment.getStorageDeletedAt() == null)
+                        .ifPresent(this::deleteStorageObject));
+    }
+
+    private void deleteOrphan(String key) {
+        try {
+            if (storage != null) storage.delete(key);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    private static void registerAfterRollback(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) action.run();
+            }
+        });
+    }
+
+    private static void registerAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() {
+                action.run();
+            }
+        });
     }
 
     private void requireRead(UUID actorId, String ownerType, UUID ownerId) {
@@ -190,10 +254,11 @@ public class AttachmentService {
         if (file == null || file.getOriginalFilename() == null || file.getOriginalFilename().isBlank()) {
             throw new InvalidRequestException("Attachment filename is required");
         }
-        String filename = file.getOriginalFilename().replace('\\', '/');
-        int slash = filename.lastIndexOf('/');
-        if (slash >= 0) filename = filename.substring(slash + 1);
-        filename = filename.replace('\r', ' ').replace('\n', ' ').strip();
+        String raw = file.getOriginalFilename();
+        if (raw.indexOf('/') >= 0 || raw.indexOf('\\') >= 0 || raw.indexOf('\r') >= 0 || raw.indexOf('\n') >= 0) {
+            throw new InvalidRequestException("Attachment filename is invalid");
+        }
+        String filename = raw.strip();
         if (filename.isBlank() || filename.length() > 255) {
             throw new InvalidRequestException("Attachment filename is invalid");
         }
