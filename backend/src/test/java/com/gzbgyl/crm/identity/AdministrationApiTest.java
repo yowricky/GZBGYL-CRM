@@ -41,7 +41,6 @@ class AdministrationApiTest extends PostgresIntegrationTest {
         jdbc.update("delete from app_user_role");
         jdbc.update("delete from app_user");
         jdbc.update("delete from organization_unit");
-        jdbc.update("delete from audit_log");
 
         root = organizations.createRoot("HQ", "Headquarters");
         sales = organizations.createChild(root.id(), "SALES", "Sales");
@@ -161,19 +160,19 @@ class AdministrationApiTest extends PostgresIntegrationTest {
 
         mvc.perform(patch("/api/admin/users/{id}/deactivate", bobId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"expectedVersion\":0,\"reason\":\"left company\"}"))
+                        .content("{\"expectedVersion\":1,\"reason\":\"left company\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.active").value(false));
 
         mvc.perform(patch("/api/admin/users/{id}/reset-password", bobId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"password\":\"replacement password\",\"expectedVersion\":1}"))
+                        .content("{\"password\":\"replacement password\",\"expectedVersion\":2}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2));
+                .andExpect(jsonPath("$.version").value(3));
 
         mvc.perform(patch("/api/admin/users/{id}/roles", bobId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roleCodes\":[\"PROJECT_MANAGER\"],\"expectedVersion\":2,\"reason\":\"new duties\"}"))
+                        .content("{\"roleCodes\":[\"PROJECT_MANAGER\"],\"expectedVersion\":3,\"reason\":\"new duties\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles[0]").value("PROJECT_MANAGER"));
     }
