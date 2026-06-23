@@ -38,12 +38,18 @@ async function submit() {
         <h1>登录</h1>
       </div>
       <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
-      <el-form label-position="top" @submit.prevent="submit">
+      <el-form class="login-form" label-position="top" @submit.prevent="submit">
         <el-form-item label="用户名">
-          <el-input v-model="form.username" autocomplete="username" />
+          <el-input v-model="form.username" autocomplete="username" autofocus placeholder="请输入用户名：admin" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="form.password" type="password" autocomplete="current-password" show-password />
+          <el-input
+            v-model="form.password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="请输入密码：Admin#ChangeMe123"
+            show-password
+          />
         </el-form-item>
         <el-button class="login-button" type="primary" :loading="loading" native-type="submit"> 登录 </el-button>
       </el-form>

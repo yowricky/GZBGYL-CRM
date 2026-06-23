@@ -194,6 +194,27 @@ a {
   background: var(--crm-surface);
 }
 
+.login-form {
+  display: grid;
+  gap: 4px;
+}
+
+.login-form .el-form-item__label {
+  margin-bottom: 8px;
+  color: var(--crm-ink);
+  font-weight: 700;
+}
+
+.login-form .el-input__wrapper {
+  min-height: 44px;
+  border: 1px solid var(--crm-ink);
+}
+
+.login-form .el-input__wrapper.is-focus {
+  border-color: var(--crm-accent);
+  outline: 2px solid rgba(228, 0, 43, 0.16);
+}
+
 .login-button {
   width: 100%;
 }
