@@ -27,10 +27,12 @@ export const useAuthStore = defineStore('auth', {
     async login(username: string, password: string) {
       await authApi.csrf()
       await authApi.login(username, password)
+      await authApi.csrf()
       await this.restore()
     },
 
     async logout() {
+      await authApi.csrf()
       await authApi.logout()
       this.user = null
       this.restored = true

@@ -3,5 +3,6 @@
 .worktrees/
 .env
 backend/target/
+node_modules/
 frontend/dist/
 frontend/node_modules/

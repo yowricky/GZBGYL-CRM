@@ -26,15 +26,39 @@ const createForm = reactive({ code: '', name: '', parentId: '' })
 const renameForm = reactive({ name: '' })
 const moveForm = reactive({ newParentId: '' })
 
-const flatNodes = computed(() => {
-  const nodes: OrganizationNode[] = []
-  const visit = (node: OrganizationNode) => {
-    nodes.push(node)
-    node.children.forEach(visit)
+function flattenTree(nodes: OrganizationNode[]): OrganizationNode[] {
+  return nodes.flatMap((node) => [node, ...flattenTree(node.children)])
+}
+
+const flatNodes = computed(() => flattenTree(tree.value))
+
+const moveTargets = computed(() => {
+  if (!selected.value) {
+    return flatNodes.value
   }
-  tree.value.forEach(visit)
-  return nodes
+  const blockedPath = `${selected.value.path}/`
+  return flatNodes.value.filter((node) => node.id !== selected.value?.id && !node.path.startsWith(blockedPath))
 })
+
+function syncSelectedNode() {
+  if (!selected.value) {
+    return
+  }
+
+  const updated = flatNodes.value.find((node) => node.id === selected.value?.id)
+  if (!updated) {
+    selected.value = null
+    renameForm.name = ''
+    createForm.parentId = ''
+    moveForm.newParentId = ''
+    return
+  }
+
+  selected.value = updated
+  renameForm.name = updated.name
+  createForm.parentId = updated.id
+  moveForm.newParentId = ''
+}
 
 function selectNode(node: OrganizationNode) {
   selected.value = node
@@ -51,6 +75,7 @@ async function loadTree() {
   try {
     const response = await http.get<OrganizationNode[]>('/admin/organization-units')
     tree.value = response.data
+    syncSelectedNode()
   } catch (err) {
     error.value = getApiMessage(err)
   } finally {
@@ -213,12 +238,7 @@ onMounted(loadTree)
             <el-button @click="renameOrganization">保存名称</el-button>
             <el-form-item label="新的上级组织">
               <el-select v-model="moveForm.newParentId" filterable placeholder="选择上级组织">
-                <el-option
-                  v-for="node in flatNodes.filter((item) => item.id !== selected?.id)"
-                  :key="node.id"
-                  :label="node.name"
-                  :value="node.id"
-                />
+                <el-option v-for="node in moveTargets" :key="node.id" :label="node.name" :value="node.id" />
               </el-select>
             </el-form-item>
             <div class="button-row">

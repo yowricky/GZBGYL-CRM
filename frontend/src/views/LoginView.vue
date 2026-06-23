@@ -45,9 +45,7 @@ async function submit() {
         <el-form-item label="密码">
           <el-input v-model="form.password" type="password" autocomplete="current-password" show-password />
         </el-form-item>
-        <el-button class="login-button" type="primary" :loading="loading" native-type="submit">
-          登录
-        </el-button>
+        <el-button class="login-button" type="primary" :loading="loading" native-type="submit"> 登录 </el-button>
       </el-form>
     </section>
   </main>

@@ -13,6 +13,15 @@ vi.mock('../src/api/auth', () => ({
   },
 }))
 
+const currentUser = {
+  id: '0d2f3bb2-77a1-4c93-9083-e19bc17cb510',
+  username: 'admin',
+  displayName: 'System Admin',
+  organizationUnitId: '4f68c48e-0f7d-4f6a-b840-e91fd88f20c9',
+  roles: ['ADMIN'],
+  permissions: ['system:admin'],
+}
+
 describe('auth store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -20,21 +29,38 @@ describe('auth store', () => {
   })
 
   it('loads the current session and exposes permissions', async () => {
-    vi.mocked(authApi.me).mockResolvedValue({
-      id: '0d2f3bb2-77a1-4c93-9083-e19bc17cb510',
-      username: 'admin',
-      displayName: '系统管理员',
-      organizationUnitId: '4f68c48e-0f7d-4f6a-b840-e91fd88f20c9',
-      roles: ['ADMIN'],
-      permissions: ['system:admin'],
-    })
+    vi.mocked(authApi.me).mockResolvedValue(currentUser)
 
     const store = useAuthStore()
 
     await store.restore()
 
-    expect(store.user?.displayName).toBe('系统管理员')
+    expect(store.user?.displayName).toBe('System Admin')
     expect(store.restored).toBe(true)
     expect(store.has('system:admin')).toBe(true)
+  })
+
+  it('refreshes csrf before and after login session rotation', async () => {
+    vi.mocked(authApi.me).mockResolvedValue(currentUser)
+
+    const store = useAuthStore()
+
+    await store.login('admin', 'secret')
+
+    expect(authApi.csrf).toHaveBeenCalledTimes(2)
+    expect(authApi.login).toHaveBeenCalledWith('admin', 'secret')
+    expect(store.user).toEqual(currentUser)
+  })
+
+  it('refreshes csrf before logout and clears local session', async () => {
+    const store = useAuthStore()
+    store.user = currentUser
+
+    await store.logout()
+
+    expect(authApi.csrf).toHaveBeenCalledTimes(1)
+    expect(authApi.logout).toHaveBeenCalledTimes(1)
+    expect(store.user).toBeNull()
+    expect(store.restored).toBe(true)
   })
 })
