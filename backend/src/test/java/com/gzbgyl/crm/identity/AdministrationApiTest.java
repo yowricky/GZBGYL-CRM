@@ -1,5 +1,6 @@
 package com.gzbgyl.crm.identity;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -104,6 +105,7 @@ class AdministrationApiTest extends PostgresIntegrationTest {
                                 """.formatted(delivery.id())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.parentId").value(delivery.id().toString()));
+        assertThat(latestAuditReason("ORGANIZATION_MOVED", createdId)).isEqualTo("reporting line change");
 
         mvc.perform(patch("/api/admin/organization-units/{id}/deactivate", createdId).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -175,6 +177,7 @@ class AdministrationApiTest extends PostgresIntegrationTest {
                         .content("{\"roleCodes\":[\"PROJECT_MANAGER\"],\"expectedVersion\":3,\"reason\":\"new duties\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles[0]").value("PROJECT_MANAGER"));
+        assertThat(latestAuditReason("USER_ROLES_ASSIGNED", bobId)).isEqualTo("new duties");
     }
 
     @Test
@@ -201,5 +204,14 @@ class AdministrationApiTest extends PostgresIntegrationTest {
                         .content("{\"roleCodes\":[\"PROJECT_MANAGER\"],\"expectedVersion\":0,\"reason\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.reason").exists());
+    }
+
+    private String latestAuditReason(String eventType, String aggregateId) {
+        return jdbc.queryForObject("""
+                select reason from audit_log
+                where event_type = ? and aggregate_id = ?::uuid
+                order by created_at desc
+                limit 1
+                """, String.class, eventType, aggregateId);
     }
 }

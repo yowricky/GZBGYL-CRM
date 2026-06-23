@@ -83,6 +83,11 @@ public class OrganizationService {
 
     @Transactional
     public OrganizationNode move(UUID id, UUID newParentId, long expectedVersion) {
+        return move(id, newParentId, expectedVersion, null);
+    }
+
+    @Transactional
+    public OrganizationNode move(UUID id, UUID newParentId, long expectedVersion, String reason) {
         repository.acquireHierarchyMutationLock();
         OrganizationUnit unit = existing(id);
         requireVersion(unit, expectedVersion);
@@ -108,12 +113,17 @@ public class OrganizationService {
         repository.replaceDescendantPathPrefix(unit.getId(), oldPrefix, newPrefix);
         OrganizationNode result = toNode(unit);
         record("ORGANIZATION_MOVED", id, before,
-                mapNullable("parentId", result.parentId(), "path", result.path()));
+                mapNullable("parentId", result.parentId(), "path", result.path()), reason);
         return result;
     }
 
     @Transactional
     public OrganizationNode deactivate(UUID id, long expectedVersion) {
+        return deactivate(id, expectedVersion, null);
+    }
+
+    @Transactional
+    public OrganizationNode deactivate(UUID id, long expectedVersion, String reason) {
         repository.acquireHierarchyMutationLock();
         OrganizationUnit unit = existing(id);
         requireVersion(unit, expectedVersion);
@@ -124,7 +134,7 @@ public class OrganizationService {
         unit.deactivate();
         flushMutation();
         OrganizationNode result = toNode(unit);
-        record("ORGANIZATION_DEACTIVATED", id, before, Map.of("active", false));
+        record("ORGANIZATION_DEACTIVATED", id, before, Map.of("active", false), reason);
         return result;
     }
 
@@ -233,8 +243,12 @@ public class OrganizationService {
     }
 
     private void record(String event, UUID id, Map<String, ?> before, Map<String, ?> after) {
+        record(event, id, before, after, null);
+    }
+
+    private void record(String event, UUID id, Map<String, ?> before, Map<String, ?> after, String reason) {
         audit.record(new AuditCommand(actor.actorId(), event, "ORGANIZATION", id,
-                before, after, actor.ipAddress(), null));
+                before, after, actor.ipAddress(), reason));
     }
 
     private static Map<String, ?> organizationState(OrganizationNode node) {

@@ -59,14 +59,14 @@ public class OrganizationController {
     @PreAuthorize("hasAuthority('system:admin')")
     public OrganizationNode move(
             @PathVariable UUID id, @Valid @RequestBody MoveOrganizationRequest request) {
-        return organizations.move(id, request.newParentId(), request.expectedVersion());
+        return organizations.move(id, request.newParentId(), request.expectedVersion(), request.reason());
     }
 
     @PatchMapping("/{id}/deactivate")
     @PreAuthorize("hasAuthority('system:admin')")
     public OrganizationNode deactivate(
             @PathVariable UUID id, @Valid @RequestBody ReasonedVersionRequest request) {
-        return organizations.deactivate(id, request.expectedVersion());
+        return organizations.deactivate(id, request.expectedVersion(), request.reason());
     }
 
     private static List<OrganizationTreeNode> toTree(List<OrganizationNode> nodes) {

@@ -12,7 +12,6 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -41,7 +40,7 @@ public class UserAdministrationController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('system:admin')")
-    public Page<UserSummary> search(
+    public UserPageResponse search(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) UUID organizationUnitId,
             @RequestParam(required = false) Boolean active,
@@ -51,8 +50,8 @@ public class UserAdministrationController {
             throw new com.gzbgyl.crm.shared.api.InvalidRequestException(
                     "page must be at least 0 and size must be between 1 and " + MAX_PAGE_SIZE);
         }
-        return users.searchUsers(new UserSearchQuery(keyword, organizationUnitId, active),
-                PageRequest.of(page, size, Sort.by("username").ascending()));
+        return UserPageResponse.from(users.searchUsers(new UserSearchQuery(keyword, organizationUnitId, active),
+                PageRequest.of(page, size, Sort.by("username").ascending())));
     }
 
     @PostMapping
@@ -73,7 +72,7 @@ public class UserAdministrationController {
     @PreAuthorize("hasAuthority('system:admin')")
     public UserSummary deactivate(
             @PathVariable UUID id, @Valid @RequestBody ReasonedVersionRequest request) {
-        return users.deactivate(id, request.expectedVersion());
+        return users.deactivate(id, request.expectedVersion(), request.reason());
     }
 
     @PatchMapping("/{id}/reset-password")
@@ -86,7 +85,7 @@ public class UserAdministrationController {
     @PatchMapping("/{id}/roles")
     @PreAuthorize("hasAuthority('system:admin')")
     public UserSummary assignRoles(@PathVariable UUID id, @Valid @RequestBody AssignRolesRequest request) {
-        return users.assignRoles(id, request.roleCodes(), request.expectedVersion());
+        return users.assignRoles(id, request.roleCodes(), request.expectedVersion(), request.reason());
     }
 
     public record CreateUserRequest(

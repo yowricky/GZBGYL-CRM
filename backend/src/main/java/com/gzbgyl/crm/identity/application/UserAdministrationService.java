@@ -95,8 +95,11 @@ public class UserAdministrationService {
     @Transactional(readOnly = true)
     public Page<UserSummary> searchUsers(UserSearchQuery query, Pageable pageable) {
         UserSearchQuery criteria = query == null ? new UserSearchQuery(null, null, null) : query;
-        return userRepository.searchDetailed(criteria.keyword(), criteria.organizationUnitId(),
-                criteria.active(), pageable).map(UserAdministrationService::toSummary);
+        Page<UUID> ids = userRepository.searchIds(criteria.keyword(), criteria.organizationUnitId(),
+                criteria.active(), pageable);
+        Map<UUID, AppUser> detailed = userRepository.findAllDetailedByIdIn(ids.getContent()).stream()
+                .collect(java.util.stream.Collectors.toMap(AppUser::getId, java.util.function.Function.identity()));
+        return ids.map(id -> detailed.get(id)).map(UserAdministrationService::toSummary);
     }
 
     @Transactional
@@ -112,12 +115,17 @@ public class UserAdministrationService {
 
     @Transactional
     public UserSummary deactivate(UUID id, long expectedVersion) {
+        return deactivate(id, expectedVersion, null);
+    }
+
+    @Transactional
+    public UserSummary deactivate(UUID id, long expectedVersion, String reason) {
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
         Map<String, ?> before = Map.of("active", user.isActive());
         user.deactivate();
         UserSummary result = flushAndSummarize(user);
-        record("USER_DEACTIVATED", id, before, Map.of("active", false));
+        record("USER_DEACTIVATED", id, before, Map.of("active", false), reason);
         sessionRevoker.revokeSessions(id);
         return result;
     }
@@ -136,6 +144,11 @@ public class UserAdministrationService {
 
     @Transactional
     public UserSummary assignRoles(UUID id, Set<String> roleCodes, long expectedVersion) {
+        return assignRoles(id, roleCodes, expectedVersion, null);
+    }
+
+    @Transactional
+    public UserSummary assignRoles(UUID id, Set<String> roleCodes, long expectedVersion, String reason) {
         Set<Role> roles = resolveRoles(roleCodes);
         AppUser user = existing(id);
         requireVersion(user, expectedVersion);
@@ -143,7 +156,7 @@ public class UserAdministrationService {
                 .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
         user.replaceRoles(roles);
         UserSummary result = flushAndSummarize(user);
-        record("USER_ROLES_ASSIGNED", id, Map.of("roles", previous), Map.of("roles", result.roles()));
+        record("USER_ROLES_ASSIGNED", id, Map.of("roles", previous), Map.of("roles", result.roles()), reason);
         sessionRevoker.revokeSessions(id);
         return result;
     }
@@ -251,7 +264,11 @@ public class UserAdministrationService {
     }
 
     private void record(String event, UUID id, Map<String, ?> before, Map<String, ?> after) {
+        record(event, id, before, after, null);
+    }
+
+    private void record(String event, UUID id, Map<String, ?> before, Map<String, ?> after, String reason) {
         audit.record(new AuditCommand(actor.actorId(), event, "USER", id,
-                before, after, actor.ipAddress(), null));
+                before, after, actor.ipAddress(), reason));
     }
 }
