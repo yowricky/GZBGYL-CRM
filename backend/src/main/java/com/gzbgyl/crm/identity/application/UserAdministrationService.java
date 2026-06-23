@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -88,6 +90,13 @@ public class UserAdministrationService {
             }
             throw exception;
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserSummary> searchUsers(UserSearchQuery query, Pageable pageable) {
+        UserSearchQuery criteria = query == null ? new UserSearchQuery(null, null, null) : query;
+        return userRepository.searchDetailed(criteria.keyword(), criteria.organizationUnitId(),
+                criteria.active(), pageable).map(UserAdministrationService::toSummary);
     }
 
     @Transactional

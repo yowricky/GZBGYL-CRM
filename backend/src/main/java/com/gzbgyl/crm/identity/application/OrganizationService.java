@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -125,6 +126,13 @@ public class OrganizationService {
         OrganizationNode result = toNode(unit);
         record("ORGANIZATION_DEACTIVATED", id, before, Map.of("active", false));
         return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrganizationNode> findAll() {
+        return repository.findAll(Sort.by("path")).stream()
+                .map(OrganizationService::toNode)
+                .toList();
     }
 
     @Transactional(readOnly = true)
