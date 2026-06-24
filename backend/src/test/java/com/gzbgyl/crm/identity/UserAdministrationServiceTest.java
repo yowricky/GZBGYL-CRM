@@ -118,7 +118,7 @@ class UserAdministrationServiceTest extends PostgresIntegrationTest {
                     .containsEntry("description", "Full system administration");
             assertThat(jdbcTemplate.queryForMap(
                     "select name, system_role from role where code = 'SYSTEM_ADMIN'"))
-                    .containsEntry("name", "System Administrator")
+                    .containsEntry("name", "系统管理员")
                     .containsEntry("system_role", true);
             status.setRollbackOnly();
         });

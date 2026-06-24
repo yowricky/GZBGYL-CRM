@@ -1,0 +1,1227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>葛洲坝供应链 CRM</title>
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  <style>
+    :root {
+      --surface: #ffffff;
+      --canvas: #f7f7f8;
+      --line: #d8dee8;
+      --line-soft: #e8edf4;
+      --text: #111827;
+      --muted: #5f6b7a;
+      --weak: #8a95a6;
+      --blue: #002fa7;
+      --blue-600: #0b5cad;
+      --blue-050: #eef5ff;
+      --red: #e4002b;
+      --red-050: #fff1f3;
+      --green: #0f8b57;
+      --green-050: #eefaf4;
+      --amber: #b7791f;
+      --amber-050: #fff7e8;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 10px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --focus: 0 0 0 3px rgba(0, 47, 167, 0.18);
+      font-family: "Helvetica Neue", Arial, "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .page {
+      min-height: 100dvh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto minmax(260px, 520px) auto;
+      gap: 20px;
+      align-items: center;
+      min-height: 64px;
+      padding: 0 28px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .brand img {
+      width: 220px;
+      max-width: 32vw;
+      height: auto;
+      display: block;
+    }
+
+    .brand-divider {
+      width: 1px;
+      height: 36px;
+      background: var(--line);
+    }
+
+    .app-title {
+      min-width: 150px;
+    }
+
+    .app-title strong {
+      display: block;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .app-title span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .search {
+      position: relative;
+      display: block;
+    }
+
+    .search svg {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      transform: translateY(-50%);
+      color: var(--weak);
+      pointer-events: none;
+    }
+
+    .search input {
+      width: 100%;
+      height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 16px 0 42px;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .search input:focus {
+      border-color: var(--blue);
+      box-shadow: var(--focus);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .icon-button,
+    .btn {
+      min-width: 44px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+    }
+
+    .icon-button:hover,
+    .btn:hover {
+      border-color: #b7c3d4;
+      background: #f9fbfd;
+    }
+
+    .icon-button:focus-visible,
+    .btn:focus-visible,
+    .nav-link:focus-visible,
+    .object-tab:focus-visible {
+      outline: none;
+      box-shadow: var(--focus);
+    }
+
+    .icon-button svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .btn {
+      padding: 0 18px;
+      font-weight: 700;
+    }
+
+    .btn.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #ffffff;
+    }
+
+    .btn.primary:hover {
+      background: #062784;
+      border-color: #062784;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      height: 48px;
+      padding: 0 28px;
+      overflow-x: auto;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      scrollbar-width: none;
+    }
+
+    .nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-link {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 0;
+      color: var(--muted);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .nav-link:hover {
+      color: var(--blue);
+      background: transparent;
+    }
+
+    .nav-link[aria-current="page"] {
+      color: var(--blue);
+      background: transparent;
+    }
+
+    .nav-link[aria-current="page"]::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 0;
+      height: 2px;
+      background: var(--blue);
+      border-radius: 999px;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 352px;
+      gap: 20px;
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 20px 28px 40px;
+    }
+
+    .summary-bar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 0 16px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+
+    .summary-copy {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .period-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .period-select {
+      min-height: 44px;
+      padding: 0 36px 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text);
+      background: var(--surface);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .period-select:focus-visible {
+      box-shadow: var(--focus);
+      border-color: var(--blue);
+    }
+
+    .data-date {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--surface);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+    }
+
+    .card.flat {
+      box-shadow: none;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .card-title {
+      min-width: 0;
+    }
+
+    .card-title strong {
+      display: block;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .card-title span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .target-axis {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr;
+      gap: 20px;
+    }
+
+    .target-cell {
+      position: relative;
+      min-height: 164px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .target-cell::before {
+      content: none;
+    }
+
+    .target-cell h2 {
+      position: relative;
+      margin: 0 0 12px;
+      font-size: 15px;
+      letter-spacing: -0.02em;
+    }
+
+    .target-main {
+      position: relative;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .target-main strong {
+      font-size: clamp(28px, 3.2vw, 40px);
+      line-height: 1;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .target-main span {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .target-meta {
+      position: relative;
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .measure {
+      position: relative;
+      height: 10px;
+      margin-top: 16px;
+      border-radius: 999px;
+      background: #edf2f8;
+      overflow: hidden;
+    }
+
+    .measure span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .measure.is-risk span {
+      background: var(--red);
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.04fr) minmax(360px, 0.96fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .action-list {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .action-item {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      min-height: 68px;
+      padding: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      background: #fbfdff;
+    }
+
+    .action-rank {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--blue-050);
+      color: var(--blue);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .action-item.is-risk .action-rank {
+      color: var(--red);
+      background: var(--red-050);
+    }
+
+    .action-copy strong {
+      display: block;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+
+    .action-copy span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: var(--blue-050);
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .tag.risk {
+      background: var(--red-050);
+      color: var(--red);
+    }
+
+    .tag.ok {
+      background: var(--green-050);
+      color: var(--green);
+    }
+
+    .stage-stack {
+      padding: 18px 20px 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr) 78px 58px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .stage strong {
+      font-size: 13px;
+    }
+
+    .stage small {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stage-bars {
+      display: grid;
+      gap: 6px;
+    }
+
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #edf2f8;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+    }
+
+    .bar.amount span {
+      background: var(--blue);
+    }
+
+    .bar.count span {
+      background: #7b8da5;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      padding: 0 20px 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend i {
+      display: inline-block;
+      width: 18px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .legend span:nth-child(2) i {
+      background: #7b8da5;
+    }
+
+    .object-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 14px 16px 0;
+      scrollbar-width: none;
+    }
+
+    .object-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .object-tab {
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 800;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .object-tab[aria-selected="true"] {
+      color: #ffffff;
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      padding: 14px 16px 18px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 860px;
+      border-collapse: collapse;
+      border: 1px solid var(--line-soft);
+      background: var(--surface);
+    }
+
+    th,
+    td {
+      padding: 14px 12px;
+      border-bottom: 1px solid var(--line-soft);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f9fbfd;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    td {
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    td.amount {
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+    }
+
+    .row-title {
+      display: grid;
+      gap: 2px;
+    }
+
+    .row-title strong {
+      color: var(--blue);
+    }
+
+    .row-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .side {
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .brief {
+      padding: 18px;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: none;
+    }
+
+    .brief span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .brief strong {
+      display: block;
+      margin-top: 8px;
+      color: var(--red);
+      font-size: 30px;
+      line-height: 1;
+      letter-spacing: -0.05em;
+    }
+
+    .brief p {
+      margin: 12px 0 18px;
+      color: var(--muted);
+    }
+
+    .brief .btn {
+      border-color: var(--line);
+      background: var(--surface);
+      color: var(--blue);
+    }
+
+    .reminder-list,
+    .activity-list {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .reminder,
+    .activity {
+      display: grid;
+      grid-template-columns: 4px minmax(0, 1fr);
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .reminder:last-child,
+    .activity:last-child {
+      border-bottom: 0;
+    }
+
+    .rail {
+      width: 4px;
+      min-height: 44px;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .reminder.is-risk .rail {
+      background: var(--red);
+    }
+
+    .reminder strong,
+    .activity strong {
+      display: block;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+    }
+
+    .reminder span,
+    .activity span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .demo-note {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    @media (max-width: 1180px) {
+      .topbar {
+        grid-template-columns: 1fr auto;
+      }
+
+      .search {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        margin-bottom: 14px;
+      }
+
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .side {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 840px) {
+      .topbar {
+        padding: 12px 18px;
+        gap: 12px;
+      }
+
+      .brand img {
+        width: 190px;
+        max-width: 52vw;
+      }
+
+      .brand-divider,
+      .app-title span {
+        display: none;
+      }
+
+      .app-title strong {
+        font-size: 14px;
+      }
+
+      .top-actions .btn {
+        display: none;
+      }
+
+      .nav {
+        padding: 0 18px;
+      }
+
+      .shell {
+        padding: 22px 18px 96px;
+      }
+
+      .summary-bar,
+      .target-axis,
+      .section-grid,
+      .side {
+        grid-template-columns: 1fr;
+      }
+
+      .period-controls {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .stage {
+        grid-template-columns: 76px minmax(0, 1fr) 52px;
+      }
+
+      .stage small:nth-of-type(2) {
+        display: none;
+      }
+
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="葛洲坝供应链 CRM 首页">
+        <img src="../../frontend/src/assets/gez-logo.png" alt="葛洲坝集团供应链管理有限公司" />
+        <span class="brand-divider" aria-hidden="true"></span>
+        <span class="app-title">
+          <strong>企业 CRM</strong>
+          <span>商机、报价、合同与回款闭环管理</span>
+        </span>
+      </a>
+
+      <label class="search">
+        <span class="sr-only">全局搜索</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-3.5-3.5"></path>
+        </svg>
+        <input type="search" aria-label="搜索客户、商机、合同、联系人" placeholder="搜索客户、商机、合同、联系人" />
+      </label>
+
+      <div class="top-actions">
+        <button class="btn primary" type="button">新建商机</button>
+        <button class="icon-button" type="button" aria-label="消息中心">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path>
+            <path d="M13.7 21a2 2 0 0 1-3.4 0"></path>
+          </svg>
+        </button>
+        <button class="icon-button" type="button" aria-label="用户菜单">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="8" r="4"></circle>
+            <path d="M4 21c1.8-4 5-6 8-6s6.2 2 8 6"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="nav" aria-label="主导航">
+      <a class="nav-link" href="#" aria-current="page">工作台</a>
+      <a class="nav-link" href="#">线索</a>
+      <a class="nav-link" href="#">客户与联系人</a>
+      <a class="nav-link" href="#">商机</a>
+      <a class="nav-link" href="#">报价</a>
+      <a class="nav-link" href="#">合同与回款</a>
+      <a class="nav-link" href="#">报表分析</a>
+      <a class="nav-link" href="#">系统管理</a>
+    </nav>
+
+    <main class="shell">
+      <section>
+        <div class="summary-bar">
+          <h1 class="sr-only">工作台</h1>
+          <div class="summary-copy">数据口径：团队目标、个人目标、商机阶段、报价、合同与回款；当前为演示样例。</div>
+          <div class="period-controls" aria-label="数据周期">
+            <select class="period-select" aria-label="选择统计周期">
+              <option>2026 年 06 月</option>
+              <option>2026 年第 2 季度</option>
+              <option>2026 年全年</option>
+            </select>
+            <span class="data-date">更新：06-24 10:30</span>
+          </div>
+        </div>
+
+        <section class="target-axis" aria-label="经营目标完成情况">
+          <article class="target-cell" data-index="01">
+            <h2>年度团队目标</h2>
+            <div class="target-main">
+              <strong>68.4%</strong>
+              <span>已完成</span>
+            </div>
+            <div class="target-meta">
+              <span>目标 12,000 万 · 已确认 8,208 万</span>
+              <span>缺口 3,792 万 · 重点关注 Q3 新增商机</span>
+            </div>
+            <div class="measure" role="progressbar" aria-label="年度团队目标完成率 68.4%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="68">
+              <span style="width: 68.4%"></span>
+            </div>
+          </article>
+
+          <article class="target-cell" data-index="02">
+            <h2>季度团队目标</h2>
+            <div class="target-main">
+              <strong>74.2%</strong>
+              <span>已完成</span>
+            </div>
+            <div class="target-meta">
+              <span>目标 3,000 万 · 已确认 2,226 万</span>
+              <span>缺口 774 万 · 本周需推进 4 个报价</span>
+            </div>
+            <div class="measure" role="progressbar" aria-label="季度团队目标完成率 74.2%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="74">
+              <span style="width: 74.2%"></span>
+            </div>
+          </article>
+
+          <article class="target-cell" data-index="03">
+            <h2>个人月度目标</h2>
+            <div class="target-main">
+              <strong>82.0%</strong>
+              <span>已完成</span>
+            </div>
+            <div class="target-meta">
+              <span>目标 500 万 · 已确认 410 万</span>
+              <span>缺口 90 万 · 预计 2 个商机可补足</span>
+            </div>
+            <div class="measure" role="progressbar" aria-label="个人月度目标完成率 82%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="82">
+              <span style="width: 82%"></span>
+            </div>
+          </article>
+        </section>
+
+        <div class="section-grid">
+          <section class="card flat" aria-labelledby="today-title">
+            <div class="card-header">
+              <div class="card-title">
+                <strong id="today-title">今日必须处理</strong>
+                <span>按经营影响和时效排序</span>
+              </div>
+              <button class="btn" type="button">查看全部</button>
+            </div>
+            <div class="action-list">
+              <article class="action-item is-risk">
+                <div class="action-rank">1</div>
+                <div class="action-copy">
+                  <strong>重点商机 14 天未更新</strong>
+                  <span>客户：华中区域项目 · 阶段：方案交流 · 下一步：确认技术方案反馈</span>
+                </div>
+                <span class="tag risk">高风险</span>
+              </article>
+              <article class="action-item">
+                <div class="action-rank">2</div>
+                <div class="action-copy">
+                  <strong>报价单等待客户确认</strong>
+                  <span>客户：长江生态材料 · 金额：286 万 · 下一步：补充交付周期说明</span>
+                </div>
+                <span class="tag">报价</span>
+              </article>
+              <article class="action-item">
+                <div class="action-rank">3</div>
+                <div class="action-copy">
+                  <strong>本月回款节点需复核</strong>
+                  <span>合同：供应链协同服务合同 · 计划回款：120 万 · 责任人：项目经理</span>
+                </div>
+                <span class="tag ok">回款</span>
+              </article>
+            </div>
+          </section>
+
+          <section class="card flat" aria-labelledby="stage-title">
+            <div class="card-header">
+              <div class="card-title">
+                <strong id="stage-title">商机阶段</strong>
+                <span>蓝色为金额占比，灰色为数量占比；概率单独展示</span>
+              </div>
+              <button class="btn" type="button">进入商机</button>
+            </div>
+            <div class="stage-stack">
+              <div class="stage">
+                <strong>初步接触</strong>
+                <div class="stage-bars" aria-label="初步接触 金额占比 18%，数量占比 38%">
+                  <div class="bar amount"><span style="width: 18%"></span></div>
+                  <div class="bar count"><span style="width: 38%"></span></div>
+                </div>
+                <small>12 项</small>
+                <small>0%</small>
+              </div>
+              <div class="stage">
+                <strong>方案交流</strong>
+                <div class="stage-bars" aria-label="方案交流 金额占比 28%，数量占比 26%">
+                  <div class="bar amount"><span style="width: 28%"></span></div>
+                  <div class="bar count"><span style="width: 26%"></span></div>
+                </div>
+                <small>8 项</small>
+                <small>40%</small>
+              </div>
+              <div class="stage">
+                <strong>立项/预算</strong>
+                <div class="stage-bars" aria-label="立项预算 金额占比 22%，数量占比 19%">
+                  <div class="bar amount"><span style="width: 22%"></span></div>
+                  <div class="bar count"><span style="width: 19%"></span></div>
+                </div>
+                <small>6 项</small>
+                <small>50%</small>
+              </div>
+              <div class="stage">
+                <strong>投标/报价</strong>
+                <div class="stage-bars" aria-label="投标报价 金额占比 20%，数量占比 10%">
+                  <div class="bar amount"><span style="width: 20%"></span></div>
+                  <div class="bar count"><span style="width: 10%"></span></div>
+                </div>
+                <small>4 项</small>
+                <small>60%</small>
+              </div>
+              <div class="stage">
+                <strong>商务谈判</strong>
+                <div class="stage-bars" aria-label="商务谈判 金额占比 12%，数量占比 7%">
+                  <div class="bar amount"><span style="width: 12%"></span></div>
+                  <div class="bar count"><span style="width: 7%"></span></div>
+                </div>
+                <small>3 项</small>
+                <small>85%</small>
+              </div>
+            </div>
+            <div class="legend">
+              <span><i></i>金额占比</span>
+              <span><i></i>数量占比</span>
+              <span>右侧百分比为阶段赢单概率</span>
+            </div>
+          </section>
+        </div>
+
+        <section class="card flat" style="margin-top: 22px" aria-labelledby="opportunity-title">
+          <div class="card-header">
+            <div class="card-title">
+              <strong id="opportunity-title">重点商机闭环</strong>
+              <span>演示样例：真实系统应接入项目、报价、合同与回款数据</span>
+            </div>
+            <button class="btn primary" type="button">新建跟进</button>
+          </div>
+          <div class="object-tabs" role="tablist" aria-label="商机视图">
+            <button class="object-tab" role="tab" aria-selected="true" type="button">本月重点</button>
+            <button class="object-tab" role="tab" aria-selected="false" type="button">高风险</button>
+            <button class="object-tab" role="tab" aria-selected="false" type="button">待报价</button>
+            <button class="object-tab" role="tab" aria-selected="false" type="button">待回款</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">商机与客户</th>
+                  <th scope="col">阶段</th>
+                  <th scope="col">金额</th>
+                  <th scope="col">预计成交</th>
+                  <th scope="col">负责人</th>
+                  <th scope="col">下一步动作</th>
+                  <th scope="col">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <span class="row-title">
+                      <strong>华中区域供应链协同平台</strong>
+                      <span>葛洲坝集团供应链管理有限公司</span>
+                    </span>
+                  </td>
+                  <td>方案交流</td>
+                  <td class="amount">¥ 680 万</td>
+                  <td>2026-07-18</td>
+                  <td>销售主管</td>
+                  <td>确认技术方案反馈</td>
+                  <td><span class="tag risk">逾期跟进</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="row-title">
+                      <strong>区域物资集采项目</strong>
+                      <span>华南工程物资中心</span>
+                    </span>
+                  </td>
+                  <td>投标/报价</td>
+                  <td class="amount">¥ 286 万</td>
+                  <td>2026-07-06</td>
+                  <td>销售经理</td>
+                  <td>补充报价说明</td>
+                  <td><span class="tag">待报价</span></td>
+                </tr>
+                <tr>
+                  <td>
+                    <span class="row-title">
+                      <strong>工程服务合同续签</strong>
+                      <span>长江生态材料</span>
+                    </span>
+                  </td>
+                  <td>商务谈判</td>
+                  <td class="amount">¥ 420 万</td>
+                  <td>2026-06-30</td>
+                  <td>项目经理</td>
+                  <td>确认合同付款条款</td>
+                  <td><span class="tag ok">接近签约</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <p class="demo-note">说明：本页面为视觉与交互 Demo，表格中的客户、金额和日期均为演示样例，用于验证信息层级和业务闭环。</p>
+      </section>
+
+      <aside class="side" aria-label="右侧经营信息">
+        <section class="brief">
+          <span>本月经营缺口</span>
+          <strong>90 万</strong>
+          <p>预计通过 2 个商务谈判阶段商机补足。建议优先处理逾期跟进与待报价事项。</p>
+          <button class="btn" type="button">查看缺口来源</button>
+        </section>
+
+        <section class="card flat" aria-labelledby="reminder-title">
+          <div class="card-header">
+            <div class="card-title">
+              <strong id="reminder-title">经营提醒</strong>
+              <span>只保留可行动提醒</span>
+            </div>
+          </div>
+          <div class="reminder-list">
+            <article class="reminder is-risk">
+              <span class="rail" aria-hidden="true"></span>
+              <div>
+                <strong>1 个重点客户缺少关键联系人</strong>
+                <span>建议在客户档案中补充决策人、使用人和财务联系人。</span>
+              </div>
+            </article>
+            <article class="reminder">
+              <span class="rail" aria-hidden="true"></span>
+              <div>
+                <strong>4 个报价待运营复核</strong>
+                <span>涉及投标/报价阶段，建议今日 18:00 前完成。</span>
+              </div>
+            </article>
+            <article class="reminder">
+              <span class="rail" aria-hidden="true"></span>
+              <div>
+                <strong>2 个合同回款计划需确认</strong>
+                <span>项目经理、运营管理、财务可查看并协同处理。</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="card flat" aria-labelledby="activity-title">
+          <div class="card-header">
+            <div class="card-title">
+              <strong id="activity-title">最近动态</strong>
+              <span>围绕商机、报价、合同与回款</span>
+            </div>
+          </div>
+          <div class="activity-list">
+            <article class="activity">
+              <span class="rail" aria-hidden="true"></span>
+              <div>
+                <strong>报价单已更新</strong>
+                <span>昨日 17:40，运营管理补充交付周期说明。</span>
+              </div>
+            </article>
+            <article class="activity">
+              <span class="rail" aria-hidden="true"></span>
+              <div>
+                <strong>客户反馈已记录</strong>
+                <span>今日 10:20，销售主管更新方案交流纪要。</span>
+              </div>
+            </article>
+            <article class="activity">
+              <span class="rail" aria-hidden="true"></span>
+              <div>
+                <strong>回款计划待确认</strong>
+                <span>合同与回款模块新增项目经理协同事项。</span>
+              </div>
+            </article>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+  </div>
+</body>
+</html>

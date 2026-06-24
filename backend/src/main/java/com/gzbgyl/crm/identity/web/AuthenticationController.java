@@ -13,19 +13,22 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.io.IOException;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -47,17 +50,22 @@ public class AuthenticationController {
     private final CsrfTokenRepository csrfTokens;
     private final SessionSecurityService sessions;
     private final SessionAuthenticationStrategy csrfAuthentication;
+    private final UserDetailsService userDetails;
+    private final boolean passwordlessLoginEnabled;
     private final SecurityContextRepository contexts = new HttpSessionSecurityContextRepository();
 
     public AuthenticationController(AuthenticationManager authenticationManager,
             CurrentUserService currentUsers, ObjectMapper mapper, CsrfTokenRepository csrfTokens,
-            SessionSecurityService sessions) {
+            SessionSecurityService sessions, UserDetailsService userDetails,
+            @Value("${app.security.passwordless-login-enabled:true}") boolean passwordlessLoginEnabled) {
         this.authenticationManager = authenticationManager;
         this.currentUsers = currentUsers;
         this.mapper = mapper;
         this.csrfTokens = csrfTokens;
         this.sessions = sessions;
         this.csrfAuthentication = new CsrfAuthenticationStrategy(csrfTokens);
+        this.userDetails = userDetails;
+        this.passwordlessLoginEnabled = passwordlessLoginEnabled;
     }
 
     @GetMapping("/csrf")
@@ -72,8 +80,10 @@ public class AuthenticationController {
     ResponseEntity<Void> login(@Valid @RequestBody LoginRequest body,
             HttpServletRequest request, HttpServletResponse response) throws IOException {
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    UsernamePasswordAuthenticationToken.unauthenticated(body.username(), body.password()));
+            Authentication authentication = loginToken(body);
+            if (!authentication.isAuthenticated()) {
+                authentication = authenticationManager.authenticate(authentication);
+            }
             authentication = sessions.startSession(authentication);
             csrfAuthentication.onAuthentication(authentication, request, response);
             HttpSession existing = request.getSession(false);
@@ -97,6 +107,17 @@ public class AuthenticationController {
         }
     }
 
+    private Authentication loginToken(LoginRequest body) {
+        if (!passwordlessLoginEnabled || body.password() != null && !body.password().isBlank()) {
+            return UsernamePasswordAuthenticationToken.unauthenticated(body.username(), body.password());
+        }
+        CrmUserPrincipal principal = (CrmUserPrincipal) userDetails.loadUserByUsername(body.username());
+        if (!principal.isEnabled()) {
+            throw new DisabledException("Invalid credentials");
+        }
+        return UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
+    }
+
     @GetMapping("/me")
     CurrentUser me() {
         return currentUsers.required();
@@ -117,7 +138,6 @@ public class AuthenticationController {
         @NotBlank(message = "Username is required")
         @Size(max = 80, message = "Username must be at most 80 characters")
         private final String username;
-        @NotBlank(message = "Password is required")
         @Size(max = 72, message = "Password must be at most 72 characters")
         private final String password;
 

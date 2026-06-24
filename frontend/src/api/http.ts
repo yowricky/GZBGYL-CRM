@@ -21,11 +21,15 @@ http.interceptors.request.use(async (config) => {
 export function getApiMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as {
+      code?: string
       message?: string
       detail?: string
       errors?: Record<string, string>
       fieldErrors?: Record<string, string>
     } | undefined
+    if (error.response?.status === 401 || data?.code === 'AUTHENTICATION_REQUIRED') {
+      return '登录已失效，请重新登录'
+    }
     const fieldErrors = data?.fieldErrors ?? data?.errors
     if (fieldErrors) {
       return Object.values(fieldErrors).join('；')

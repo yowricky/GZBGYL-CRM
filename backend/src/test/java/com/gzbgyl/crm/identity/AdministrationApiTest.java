@@ -69,6 +69,70 @@ class AdministrationApiTest extends PostgresIntegrationTest {
     }
 
     @Test
+    @WithMockUser(authorities = "system:admin")
+    void adminCanListRolesPermissionsAndConfigureRolePermissions() throws Exception {
+        mvc.perform(get("/api/admin/roles"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.code == 'SALES')]").exists())
+                .andExpect(jsonPath("$[?(@.code == 'SALES')].permissions[0]").exists());
+
+        mvc.perform(get("/api/admin/permissions"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.code == 'opportunity:read:own')]").exists())
+                .andExpect(jsonPath("$[?(@.code == 'financial:read:department')]").exists());
+
+        var role = jdbc.queryForMap("select id, version from role where code = 'PROJECT_MANAGER'");
+        String roleId = role.get("id").toString();
+        Number version = (Number) role.get("version");
+
+        mvc.perform(patch("/api/admin/roles/{id}/permissions", roleId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"permissionCodes":["opportunity:read:assigned","financial:read:department"],
+                                 "expectedVersion":%d,"reason":"project manager needs financial view"}
+                                """.formatted(version.longValue())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("PROJECT_MANAGER"))
+                .andExpect(jsonPath("$.permissions", hasSize(2)))
+                .andExpect(jsonPath("$.permissions[0].code").exists());
+        assertThat(latestAuditReason("ROLE_PERMISSIONS_UPDATED", roleId))
+                .isEqualTo("project manager needs financial view");
+    }
+
+    @Test
+    @WithMockUser(authorities = "system:admin")
+    void rolePermissionMutationValidatesReasonCsrfAndProtectedAdminRole() throws Exception {
+        String adminRoleId = jdbc.queryForObject(
+                "select id from role where code = 'SYSTEM_ADMIN'", String.class);
+        Number adminVersion = jdbc.queryForObject(
+                "select version from role where code = 'SYSTEM_ADMIN'", Number.class);
+
+        mvc.perform(patch("/api/admin/roles/{id}/permissions", adminRoleId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"permissionCodes":["system:admin"],"expectedVersion":%d,"reason":"change"}
+                                """.formatted(adminVersion.longValue())))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        mvc.perform(patch("/api/admin/roles/{id}/permissions", adminRoleId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"permissionCodes":["system:admin"],"expectedVersion":%d,"reason":" "}
+                                """.formatted(adminVersion.longValue())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.reason").exists());
+
+        mvc.perform(patch("/api/admin/roles/{id}/permissions", adminRoleId).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"permissionCodes":["system:admin"],"expectedVersion":%d,"reason":"protect admin"}
+                                """.formatted(adminVersion.longValue())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
+    @Test
     void unauthenticatedAdminRequestReturnsJson401() throws Exception {
         mvc.perform(get("/api/admin/users"))
                 .andExpect(status().isUnauthorized())
@@ -144,6 +208,11 @@ class AdministrationApiTest extends PostgresIntegrationTest {
     @Test
     @WithMockUser(authorities = "system:admin")
     void listCreateDeactivateResetPasswordAndAssignRolesForUsers() throws Exception {
+        mvc.perform(get("/api/admin/users"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].username").value("alice"));
+
         mvc.perform(get("/api/admin/users").param("keyword", "ALI").param("active", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(1)))

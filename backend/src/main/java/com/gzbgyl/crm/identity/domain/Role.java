@@ -48,4 +48,9 @@ public class Role extends BaseEntity {
     public Set<Permission> getPermissions() {
         return Set.copyOf(permissions);
     }
+
+    public void replacePermissions(Set<Permission> replacement) {
+        permissions.clear();
+        permissions.addAll(replacement);
+    }
 }

@@ -52,6 +52,16 @@ describe('auth store', () => {
     expect(store.user).toEqual(currentUser)
   })
 
+  it('submits an empty password by default for test-stage login', async () => {
+    vi.mocked(authApi.me).mockResolvedValue(currentUser)
+
+    const store = useAuthStore()
+
+    await store.login('admin')
+
+    expect(authApi.login).toHaveBeenCalledWith('admin', '')
+  })
+
   it('refreshes csrf before logout and clears local session', async () => {
     const store = useAuthStore()
     store.user = currentUser
@@ -60,6 +70,17 @@ describe('auth store', () => {
 
     expect(authApi.csrf).toHaveBeenCalledTimes(1)
     expect(authApi.logout).toHaveBeenCalledTimes(1)
+    expect(store.user).toBeNull()
+    expect(store.restored).toBe(true)
+  })
+
+  it('clears local session even when server logout is already unauthenticated', async () => {
+    vi.mocked(authApi.logout).mockRejectedValue(new Error('Authentication required'))
+    const store = useAuthStore()
+    store.user = currentUser
+
+    await store.logout()
+
     expect(store.user).toBeNull()
     expect(store.restored).toBe(true)
   })

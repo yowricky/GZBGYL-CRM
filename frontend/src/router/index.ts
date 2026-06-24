@@ -1,18 +1,14 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import AppShell from '../layouts/AppShell.vue'
+import BusinessModuleView from '../views/BusinessModuleView.vue'
+import ForbiddenView from '../views/ForbiddenView.vue'
 import LoginView from '../views/LoginView.vue'
+import WorkspaceView from '../views/WorkspaceView.vue'
 import OrganizationView from '../views/admin/OrganizationView.vue'
+import RolePermissionView from '../views/admin/RolePermissionView.vue'
 import UserView from '../views/admin/UserView.vue'
 import { useAuthStore } from '../stores/auth'
-
-const ForbiddenView = {
-  template: '<main class="simple-page"><h1>403</h1><p>当前账号没有访问该页面的权限。</p></main>',
-}
-
-const WorkspaceView = {
-  template: '<section class="workspace-page"><h2>工作台</h2><p>业务模块建设中，当前页面用于进入认证后的 CRM 工作区。</p></section>',
-}
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/workspace' },
@@ -23,6 +19,15 @@ const routes: RouteRecordRaw[] = [
     component: AppShell,
     children: [
       { path: 'workspace', name: 'workspace', component: WorkspaceView },
+      { path: 'reports', name: 'reports', component: BusinessModuleView, props: { moduleKind: 'reports' } },
+      { path: 'leads', name: 'leads', component: BusinessModuleView, props: { moduleKind: 'leads' } },
+      { path: 'accounts', name: 'accounts', component: BusinessModuleView, props: { moduleKind: 'accounts' } },
+      { path: 'partners', name: 'partners', component: BusinessModuleView, props: { moduleKind: 'partners' } },
+      { path: 'opportunities', name: 'opportunities', component: BusinessModuleView, props: { moduleKind: 'opportunities' } },
+      { path: 'projects', name: 'projects', component: BusinessModuleView, props: { moduleKind: 'projects' } },
+      { path: 'quotes', name: 'quotes', component: BusinessModuleView, props: { moduleKind: 'quotes' } },
+      { path: 'contracts', name: 'contracts', component: BusinessModuleView, props: { moduleKind: 'contracts' } },
+      { path: 'activities', name: 'activities', component: BusinessModuleView, props: { moduleKind: 'activities' } },
       {
         path: 'admin/organization-units',
         name: 'organization-units',
@@ -33,6 +38,12 @@ const routes: RouteRecordRaw[] = [
         path: 'admin/users',
         name: 'users',
         component: UserView,
+        meta: { permission: 'system:admin' },
+      },
+      {
+        path: 'admin/role-permissions',
+        name: 'role-permissions',
+        component: RolePermissionView,
         meta: { permission: 'system:admin' },
       },
     ],

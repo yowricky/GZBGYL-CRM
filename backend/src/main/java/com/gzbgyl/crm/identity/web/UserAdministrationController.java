@@ -91,7 +91,7 @@ public class UserAdministrationController {
     public record CreateUserRequest(
             @NotBlank @Size(max = 80) String username,
             @NotBlank @Size(max = 120) String displayName,
-            @NotBlank @Size(min = 12, max = 72) String initialPassword,
+            @Size(max = 72) String initialPassword,
             @NotNull UUID organizationUnitId,
             @NotEmpty Set<@NotBlank String> roleCodes) {
     }

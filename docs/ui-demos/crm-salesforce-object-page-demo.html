@@ -1,0 +1,1339 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CRM 商机模块内部页 Demo</title>
+  <style>
+    :root {
+      --canvas: #f5f7fa;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --line: #d8dee8;
+      --line-soft: #e8edf4;
+      --text: #111827;
+      --muted: #5f6b7a;
+      --weak: #8a95a6;
+      --blue: #005bac;
+      --blue-700: #004783;
+      --blue-soft: #eef5ff;
+      --red: #d92d20;
+      --red-soft: #fff1f1;
+      --green: #067647;
+      --green-soft: #ecfdf3;
+      --amber: #b54708;
+      --amber-soft: #fff7e8;
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 10px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+      --focus: 0 0 0 3px rgba(0, 91, 172, 0.18);
+      --font-title: "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+      --font-body: SimSun, "宋体", serif;
+      font-family: var(--font-body);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .page {
+      min-height: 100dvh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      min-height: 58px;
+      padding: 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 232px;
+    }
+
+    .brand img {
+      width: 192px;
+      height: auto;
+      display: block;
+    }
+
+    .object-nav {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .object-nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav-item {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-height: 58px;
+      padding: 0 14px;
+      color: #344054;
+      font-family: var(--font-title);
+      font-weight: 800;
+      white-space: nowrap;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .nav-item[aria-current="page"] {
+      color: var(--blue);
+    }
+
+    .nav-item[aria-current="page"]::after {
+      content: "";
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 0;
+      height: 3px;
+      background: var(--blue);
+      border-radius: 3px 3px 0 0;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-button,
+    .button,
+    .text-button {
+      min-height: 36px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .icon-button {
+      width: 36px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 13px;
+      font-weight: 400;
+    }
+
+    .button.primary {
+      color: #ffffff;
+      border-color: var(--blue);
+      background: var(--blue);
+    }
+
+    .button.ghost,
+    .text-button {
+      background: #ffffff;
+      color: #344054;
+    }
+
+    .text-button {
+      padding: 0 10px;
+      font-weight: 400;
+    }
+
+    button:hover,
+    .button:hover,
+    .text-button:hover {
+      border-color: #b7c3d6;
+      background: #f8fafc;
+    }
+
+    .button.primary:hover {
+      background: var(--blue-700);
+      border-color: var(--blue-700);
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    a:focus-visible {
+      outline: none;
+      box-shadow: var(--focus);
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      background: var(--blue);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .workspace {
+      position: relative;
+      display: block;
+      padding: 16px 20px 32px;
+      width: min(920px, calc(100vw - 700px));
+      min-width: 620px;
+      margin: 0 auto;
+    }
+
+    .floating-panel {
+      position: fixed;
+      top: 74px;
+      z-index: 12;
+      width: 292px;
+      max-height: calc(100dvh - 96px);
+      overflow: auto;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.10);
+    }
+
+    .floating-panel.left {
+      left: 16px;
+    }
+
+    .floating-panel.right {
+      right: 16px;
+      width: 326px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .object-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--blue-soft);
+      border: 1px solid #cfe1f7;
+      color: var(--blue);
+      flex: 0 0 auto;
+    }
+
+    .object-mark svg,
+    .icon-button svg,
+    .mini-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-family: var(--font-title);
+    }
+
+    h1 {
+      font-size: 18px;
+      line-height: 1.25;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    h2 {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    strong {
+      font-weight: 400;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .record-count {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #ffffff;
+      color: #344054;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .chip.active {
+      color: var(--blue);
+      border-color: #b7d4f5;
+      background: var(--blue-soft);
+      font-weight: 400;
+    }
+
+    .money,
+    .percent,
+    .date {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .stage-pill,
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+
+    .stage-pill {
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .status-pill.warning {
+      color: var(--amber);
+      background: var(--amber-soft);
+    }
+
+    .status-pill.success {
+      color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .record-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .record-header {
+      padding: 16px;
+    }
+
+    .record-header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .record-heading {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .record-heading h1 {
+      font-size: 20px;
+    }
+
+    .record-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .record-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .quick-fields {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      margin-top: 16px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      background: var(--line-soft);
+      overflow: hidden;
+    }
+
+    .quick-field {
+      padding: 12px;
+      background: #ffffff;
+      min-width: 0;
+    }
+
+    .quick-field span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .quick-field strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .path-card {
+      padding: 14px 16px 16px;
+    }
+
+    .path-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .path {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: var(--line);
+      gap: 1px;
+    }
+
+    .path-step {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 10px;
+      background: #ffffff;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 400;
+      text-align: center;
+    }
+
+    .path-step.done {
+      color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .path-step.current {
+      color: #ffffff;
+      background: var(--blue);
+    }
+
+    .stage-guidance {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .guidance-box {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      background: #ffffff;
+    }
+
+    .guidance-box ul,
+    .timeline ul,
+    .related-list {
+      margin: 8px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .guidance-box li,
+    .related-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-top: 1px solid var(--line-soft);
+      color: #344054;
+      font-size: 13px;
+    }
+
+    .guidance-box li:first-child,
+    .related-list li:first-child {
+      border-top: 0;
+    }
+
+    .content-card {
+      overflow: hidden;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 2px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #ffffff;
+      overflow-x: auto;
+    }
+
+    .tab {
+      position: relative;
+      min-height: 46px;
+      padding: 0 12px;
+      border: 0;
+      background: transparent;
+      color: #344054;
+      font-weight: 400;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tab[aria-selected="true"] {
+      color: var(--blue);
+    }
+
+    .tab[aria-selected="true"]::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 0;
+      height: 3px;
+      border-radius: 3px 3px 0 0;
+      background: var(--blue);
+    }
+
+    .detail-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .subject-card {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .subject-card + .subject-card {
+      margin-top: 0;
+    }
+
+    .subject-card summary {
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 14px;
+      cursor: pointer;
+      background: var(--surface-soft);
+      border-bottom: 1px solid transparent;
+      font-family: var(--font-title);
+      font-weight: 400;
+    }
+
+    .subject-card[open] summary {
+      border-bottom-color: var(--line-soft);
+    }
+
+    .subject-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .summary-meta {
+      color: var(--muted);
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 400;
+    }
+
+    .subject-content {
+      padding: 0;
+    }
+
+    .section {
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: var(--surface-soft);
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+
+    .field {
+      min-height: 62px;
+      padding: 12px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .field:nth-child(-n + 2) {
+      border-top: 0;
+    }
+
+    .field:nth-child(odd) {
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .field label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .field strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 400;
+    }
+
+    .activity-composer {
+      padding: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .composer-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .composer-tab {
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: #ffffff;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 400;
+      cursor: pointer;
+    }
+
+    .composer-tab.active {
+      color: var(--blue);
+      border-color: #b7d4f5;
+      background: var(--blue-soft);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 76px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      color: var(--text);
+      background: #ffffff;
+    }
+
+    .composer-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .timeline {
+      padding: 12px;
+    }
+
+    .timeline li {
+      position: relative;
+      padding: 0 0 14px 24px;
+      border-left: 1px solid var(--line);
+    }
+
+    .timeline li:last-child {
+      padding-bottom: 0;
+      border-left-color: transparent;
+    }
+
+    .timeline li::before {
+      content: "";
+      position: absolute;
+      left: -5px;
+      top: 2px;
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 2px solid var(--blue);
+    }
+
+    .timeline time {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .side-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .side-card {
+      padding: 14px;
+    }
+
+    .next-action {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .action-item {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      background: #ffffff;
+    }
+
+    .mini-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      display: grid;
+      place-items: center;
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .risk-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .risk {
+      padding: 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid #f4c7c3;
+      background: var(--red-soft);
+    }
+
+    .risk strong {
+      color: var(--red);
+      display: block;
+      font-size: 13px;
+    }
+
+    .related-list strong {
+      font-size: 13px;
+    }
+
+    .related-list span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .hint-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .hint-card {
+      padding: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-md);
+      background: #ffffff;
+    }
+
+    .hint-card strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .hint-card p {
+      margin-top: 4px;
+    }
+
+    .ai-thread {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .ai-message {
+      padding: 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line-soft);
+      background: #ffffff;
+    }
+
+    .ai-message.assistant {
+      border-color: #cfe1f7;
+      background: var(--blue-soft);
+    }
+
+    .prompt-grid {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .prompt-grid .text-button {
+      width: 100%;
+      justify-content: flex-start;
+      text-align: left;
+    }
+
+    .ai-input {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .ai-input textarea {
+      min-height: 86px;
+    }
+
+    .footer-note {
+      padding: 0 16px 16px;
+      color: var(--weak);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    @media (max-width: 1180px) {
+      .floating-panel {
+        position: sticky;
+        top: 74px;
+        width: auto;
+        max-height: none;
+        box-shadow: var(--shadow);
+      }
+
+      .floating-panel.left,
+      .floating-panel.right {
+        left: auto;
+        right: auto;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+        max-width: 980px;
+        width: auto;
+        min-width: 0;
+      }
+
+      .left-drawer {
+        order: 2;
+      }
+
+      .record-panel {
+        order: 1;
+      }
+
+      .ai-drawer {
+        order: 3;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .topbar {
+        flex-wrap: wrap;
+        padding: 10px 16px 0;
+      }
+
+      .brand {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .object-nav {
+        order: 3;
+        flex-basis: 100%;
+      }
+
+      .workspace {
+        padding: 12px;
+      }
+
+      .detail-body,
+      .stage-guidance {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      body {
+        font-size: 13px;
+      }
+
+      .top-actions {
+        display: none;
+      }
+
+      .brand img {
+        width: 164px;
+      }
+
+      .workspace {
+        gap: 12px;
+      }
+
+      .quick-fields,
+      .field-grid,
+      .path {
+        grid-template-columns: 1fr;
+      }
+
+      .field,
+      .field:nth-child(odd) {
+        border-right: 0;
+      }
+
+      .field:nth-child(2) {
+        border-top: 1px solid var(--line-soft);
+      }
+
+      .record-header-top {
+        flex-direction: column;
+      }
+
+      .record-actions {
+        justify-content: flex-start;
+      }
+
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar" aria-label="全局导航">
+      <a class="brand" href="#" aria-label="返回经营驾驶舱">
+        <img src="../../frontend/src/assets/gez-logo.png" alt="葛洲坝集团供应链管理有限公司" />
+      </a>
+      <nav class="object-nav" aria-label="CRM 对象导航">
+        <button class="nav-item">工作台</button>
+        <button class="nav-item">线索</button>
+        <button class="nav-item">客户与联系人</button>
+        <button class="nav-item" aria-current="page">商机</button>
+        <button class="nav-item">报价</button>
+        <button class="nav-item">合同与回款</button>
+        <button class="nav-item">报表分析</button>
+      </nav>
+      <div class="top-actions" aria-label="全局操作">
+        <button class="icon-button" aria-label="全局搜索">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
+        </button>
+        <button class="icon-button" aria-label="通知">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M13.7 21a2 2 0 0 1-3.4 0"></path></svg>
+        </button>
+        <span class="avatar" aria-label="当前用户：张">张</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel floating-panel left left-drawer" aria-label="更多信息提示">
+        <div class="panel-head">
+          <div class="title-row">
+            <span class="object-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="m7 15 4-4 3 3 5-7"></path></svg>
+            </span>
+            <div>
+              <h1>更多信息</h1>
+              <p class="muted">跟随当前商机记录</p>
+            </div>
+          </div>
+          <span class="record-count">主体信息</span>
+        </div>
+
+        <div class="side-card">
+          <h2>当前选中</h2>
+          <p class="muted">中间栏：主体信息</p>
+          <div class="hint-list">
+            <div class="hint-card">
+              <strong>商机完整度 72%</strong>
+              <p class="muted">已填写客户、需求类型、销售主管；项目经理尚未分配。</p>
+            </div>
+            <div class="hint-card">
+              <strong>权限提示</strong>
+              <p class="muted">项目经理、运营管理、财务可查看该商机的关键字段。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-card">
+          <h2>相关汇总</h2>
+          <ul class="related-list">
+            <li><strong>商机编号</strong><span>OPP-2026-0624-001</span></li>
+            <li><strong>客户</strong><span>葛洲坝供应链</span></li>
+            <li><strong>负责人</strong><span>张经理</span></li>
+            <li><strong>本周动作</strong><span>确认技术边界</span></li>
+          </ul>
+        </div>
+
+        <div class="side-card">
+          <h2>提示</h2>
+          <div class="hint-list">
+            <div class="hint-card">
+              <strong>点击“客户与联系人”</strong>
+              <p class="muted">左侧应切换为联系人、决策链、客户组织关系摘要。</p>
+            </div>
+            <div class="hint-card">
+              <strong>点击“报价、合同与回款”</strong>
+              <p class="muted">左侧应切换为报价状态、合同状态、回款计划提醒。</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="record-panel" aria-label="商机详情">
+        <article class="panel record-header">
+          <div class="record-header-top">
+            <div class="record-heading">
+              <span class="object-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 19V5"></path><path d="M4 19h16"></path><path d="m7 15 4-4 3 3 5-7"></path></svg>
+              </span>
+              <div>
+                <p class="muted">商机记录</p>
+                <h1>华东区域供应链数字化平台</h1>
+                <div class="record-meta">
+                  <span>客户：葛洲坝供应链</span>
+                  <span>负责人：张经理</span>
+                  <span>最近更新：今天 09:40</span>
+                </div>
+              </div>
+            </div>
+            <div class="record-actions">
+              <button class="button primary">推进阶段</button>
+              <button class="button ghost">新建报价</button>
+              <button class="button ghost">记录跟进</button>
+              <button class="icon-button" aria-label="更多操作">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12h.01"></path><path d="M19 12h.01"></path><path d="M5 12h.01"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="quick-fields" aria-label="关键字段">
+            <div class="quick-field"><span>预计金额</span><strong>¥ 1,280 万</strong></div>
+            <div class="quick-field"><span>成交概率</span><strong>40%</strong></div>
+            <div class="quick-field"><span>预计签约</span><strong>2026-08-30</strong></div>
+            <div class="quick-field"><span>本周动作</span><strong>确认技术边界</strong></div>
+          </div>
+        </article>
+
+        <article class="panel path-card" aria-label="销售阶段路径">
+          <div class="path-top">
+            <div>
+              <h2>销售阶段</h2>
+              <p class="muted">阶段概率沿用已确认的 CRM 规则</p>
+            </div>
+            <span class="status-pill warning">需补充预算口径</span>
+          </div>
+          <div class="path" role="list" aria-label="商机阶段">
+            <div class="path-step done" role="listitem">初步接触 0%</div>
+            <div class="path-step current" role="listitem" aria-current="step">方案交流 40%</div>
+            <div class="path-step" role="listitem">立项/预算 50%</div>
+            <div class="path-step" role="listitem">投标/报价 60%</div>
+            <div class="path-step" role="listitem">商务谈判 85%</div>
+          </div>
+          <div class="stage-guidance">
+            <div class="guidance-box">
+              <h3>关键字段</h3>
+              <ul>
+                <li><span>业务范围</span><strong>集采、报价、合同履约</strong></li>
+                <li><span>决策人</span><strong>供应链管理部</strong></li>
+                <li><span>预算来源</span><strong>待确认</strong></li>
+              </ul>
+            </div>
+            <div class="guidance-box">
+              <h3>阶段建议</h3>
+              <ul>
+                <li><span>安排方案评审会</span><strong>本周</strong></li>
+                <li><span>补齐预算测算表</span><strong>运营协同</strong></li>
+                <li><span>确认接口清单</span><strong>技术协同</strong></li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel content-card" aria-label="记录内容">
+          <div class="tabs" role="tablist" aria-label="商机信息标签">
+            <button class="tab" role="tab" aria-selected="true">详情</button>
+            <button class="tab" role="tab" aria-selected="false">动态</button>
+            <button class="tab" role="tab" aria-selected="false">相关</button>
+            <button class="tab" role="tab" aria-selected="false">文件</button>
+          </div>
+          <div class="detail-body">
+            <details class="subject-card" open>
+              <summary>
+                <span>主体信息</span>
+                <span class="summary-meta">商机、客户、责任人</span>
+              </summary>
+              <div class="subject-content">
+                <div class="field-grid">
+                  <div class="field"><label>商机编号</label><strong>OPP-2026-0624-001</strong></div>
+                  <div class="field"><label>客户名称</label><strong>葛洲坝供应链</strong></div>
+                  <div class="field"><label>需求类型</label><strong>系统集成 / 软件平台</strong></div>
+                  <div class="field"><label>销售主管</label><strong>周总</strong></div>
+                  <div class="field"><label>项目经理</label><strong>待分配</strong></div>
+                  <div class="field"><label>运营管理</label><strong>运营一组</strong></div>
+                  <div class="field"><label>财务查看</label><strong>已开放</strong></div>
+                  <div class="field"><label>风险等级</label><strong>中</strong></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="subject-card" open>
+              <summary>
+                <span>客户与联系人</span>
+                <span class="summary-meta">4 位联系人，1 位关键决策人</span>
+              </summary>
+              <div class="subject-content">
+                <div class="field-grid">
+                  <div class="field"><label>客户部门</label><strong>供应链管理部</strong></div>
+                  <div class="field"><label>关键决策人</label><strong>采购中心负责人</strong></div>
+                  <div class="field"><label>业务联系人</label><strong>李主任</strong></div>
+                  <div class="field"><label>技术联系人</label><strong>信息化办公室</strong></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="subject-card">
+              <summary>
+                <span>报价、合同与回款</span>
+                <span class="summary-meta">报价 0 份，合同待生成</span>
+              </summary>
+              <div class="subject-content">
+                <div class="field-grid">
+                  <div class="field"><label>预计报价</label><strong>¥ 1,280 万</strong></div>
+                  <div class="field"><label>报价状态</label><strong>未创建</strong></div>
+                  <div class="field"><label>合同状态</label><strong>未签约</strong></div>
+                  <div class="field"><label>回款计划</label><strong>待生成</strong></div>
+                </div>
+              </div>
+            </details>
+
+            <details class="subject-card" open>
+              <summary>
+                <span id="activity-title">活动与跟进</span>
+                <span class="summary-meta">3 条动态，1 条待保存</span>
+              </summary>
+              <div class="activity-composer">
+                <div class="composer-tabs" aria-label="新建活动类型">
+                  <button class="composer-tab active">记录电话</button>
+                  <button class="composer-tab">新建任务</button>
+                  <button class="composer-tab">新建会议</button>
+                </div>
+                <label>
+                  <span class="sr-only">跟进内容</span>
+                  <textarea>与客户确认：供应商准入、报价审批、合同履约三部分需要统一权限模型。</textarea>
+                </label>
+                <div class="composer-actions">
+                  <span class="muted">保存后同步到跟进记录</span>
+                  <button class="button primary">保存</button>
+                </div>
+              </div>
+              <div class="timeline">
+                <ul>
+                  <li>
+                    <strong>方案交流会纪要已上传</strong>
+                    <p class="muted">张经理补充了接口清单和会议结论。</p>
+                    <time datetime="2026-06-24T09:40">今天 09:40</time>
+                  </li>
+                  <li>
+                    <strong>客户要求补充预算测算</strong>
+                    <p class="muted">需要运营管理与财务共同确认测算口径。</p>
+                    <time datetime="2026-06-23T16:10">昨天 16:10</time>
+                  </li>
+                  <li>
+                    <strong>完成初版方案沟通</strong>
+                    <p class="muted">确认建设范围包含集采、报价、合同履约。</p>
+                    <time datetime="2026-06-20T11:30">2026-06-20 11:30</time>
+                  </li>
+                </ul>
+              </div>
+            </details>
+          </div>
+          <p class="footer-note">Demo：内部功能页视觉与交互结构示意</p>
+        </article>
+      </section>
+
+      <aside class="side-stack floating-panel right ai-drawer" aria-label="AI 交互">
+        <section class="panel side-card">
+          <h2>AI 商机助手</h2>
+          <p class="muted">基于当前商机记录、跟进动态和阶段规则回答问题。</p>
+          <div class="ai-thread">
+            <div class="ai-message assistant">
+              <strong>当前判断</strong>
+              <p class="muted">该商机处于方案交流阶段，主要卡点是预算来源和接口范围。建议先补齐预算测算，再推进到立项/预算。</p>
+            </div>
+            <div class="ai-message">
+              <strong>你可以问</strong>
+              <p class="muted">这条商机为什么不能直接进入报价？</p>
+            </div>
+          </div>
+
+          <div class="prompt-grid" aria-label="推荐问题">
+            <button class="text-button">生成下一次客户会议议程</button>
+            <button class="text-button">分析当前商机风险</button>
+            <button class="text-button">整理推进到立项/预算的待办</button>
+          </div>
+
+          <label class="ai-input">
+            <span class="muted">向 AI 提问</span>
+            <textarea>请根据当前商机，生成本周跟进计划。</textarea>
+            <button class="button primary">发送</button>
+          </label>
+        </section>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>
