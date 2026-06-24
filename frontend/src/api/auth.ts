@@ -21,7 +21,7 @@ export const authApi = {
     return response.data
   },
 
-  async login(username: string, password: string): Promise<void> {
+  async login(username: string, password = ''): Promise<void> {
     await http.post('/auth/login', { username, password })
   },
 

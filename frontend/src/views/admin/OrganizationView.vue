@@ -22,6 +22,8 @@ const success = ref('')
 const reasonVisible = ref(false)
 const pendingReasonAction = ref<'move' | 'deactivate'>('move')
 const reason = ref('')
+const keyword = ref('')
+const status = ref('')
 const createForm = reactive({ code: '', name: '', parentId: '' })
 const renameForm = reactive({ name: '' })
 const moveForm = reactive({ newParentId: '' })
@@ -31,6 +33,16 @@ function flattenTree(nodes: OrganizationNode[]): OrganizationNode[] {
 }
 
 const flatNodes = computed(() => flattenTree(tree.value))
+const activeNodeCount = computed(() => flatNodes.value.filter((node) => node.active).length)
+const disabledNodeCount = computed(() => flatNodes.value.filter((node) => !node.active).length)
+const filteredNodes = computed(() => {
+  const normalizedKeyword = keyword.value.trim().toLowerCase()
+  return flatNodes.value.filter((node) => {
+    const matchesKeyword = !normalizedKeyword || [node.name, node.code, node.path].join(' ').toLowerCase().includes(normalizedKeyword)
+    const matchesStatus = !status.value || String(node.active) === status.value
+    return matchesKeyword && matchesStatus
+  })
+})
 
 const moveTargets = computed(() => {
   if (!selected.value) {
@@ -67,6 +79,24 @@ function selectNode(node: OrganizationNode) {
   moveForm.newParentId = ''
   error.value = ''
   success.value = ''
+}
+
+function prepareCreateOrganization(parent?: OrganizationNode) {
+  if (parent) {
+    selectNode(parent)
+    createForm.parentId = parent.id
+  }
+  createForm.code = ''
+  createForm.name = ''
+  error.value = ''
+  success.value = ''
+}
+
+function requestDeactivateOrganization(node: OrganizationNode) {
+  selectNode(node)
+  pendingReasonAction.value = 'deactivate'
+  reason.value = ''
+  reasonVisible.value = true
 }
 
 async function loadTree() {
@@ -188,6 +218,73 @@ onMounted(loadTree)
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
     <el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
+
+    <section class="subject-content target-grid" aria-label="组织架构关键指标">
+      <article class="target-card">
+        <h2>组织总数</h2>
+        <div class="target-value compact"><strong>{{ flatNodes.length }}</strong></div>
+      </article>
+      <article class="target-card">
+        <h2>启用组织</h2>
+        <div class="target-value compact"><strong>{{ activeNodeCount }}</strong></div>
+      </article>
+      <article class="target-card">
+        <h2>停用组织</h2>
+        <div class="target-value compact"><strong>{{ disabledNodeCount }}</strong></div>
+      </article>
+    </section>
+
+    <el-card shadow="never" class="admin-filter">
+      <el-form inline>
+        <el-form-item label="关键词">
+          <el-input v-model="keyword" placeholder="组织名称、编码或路径" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="status" clearable placeholder="全部状态">
+            <el-option label="启用" value="true" />
+            <el-option label="停用" value="false" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="日期">
+          <div class="admin-date-range">
+            <input type="date" aria-label="开始日期" />
+            <span>至</span>
+            <input type="date" aria-label="结束日期" />
+          </div>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="never" class="admin-table-card">
+      <template #header>主体列表（{{ filteredNodes.length }}）</template>
+      <div class="record-list">
+        <article v-for="node in filteredNodes" :key="node.id" class="record-row">
+          <div class="record-main">
+            <strong>{{ node.name }}</strong>
+            <span>{{ node.path }}</span>
+          </div>
+          <dl class="record-fields">
+            <div>
+              <dt>组织编码</dt>
+              <dd>{{ node.code }}</dd>
+            </div>
+            <div>
+              <dt>上级组织</dt>
+              <dd>{{ node.parentId ? '下级节点' : '根组织' }}</dd>
+            </div>
+            <div>
+              <dt>版本</dt>
+              <dd>{{ node.version }}</dd>
+            </div>
+          </dl>
+          <div class="record-actions">
+            <span class="status-tag" :class="node.active ? 'tone-ok' : 'tone-risk'">{{ node.active ? '启用' : '停用' }}</span>
+            <button class="text-action record-action" type="button" @click="prepareCreateOrganization(node)">增加</button>
+            <button class="text-action record-action is-danger" type="button" @click="requestDeactivateOrganization(node)">删除</button>
+          </div>
+        </article>
+      </div>
+    </el-card>
 
     <div class="admin-grid">
       <el-card shadow="never">

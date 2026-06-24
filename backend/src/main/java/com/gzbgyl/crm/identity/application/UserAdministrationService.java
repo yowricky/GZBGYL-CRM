@@ -32,6 +32,7 @@ public class UserAdministrationService {
 
     private static final String DUPLICATE_USERNAME = "用户名已存在";
     private static final String CONFLICT = "用户已被其他用户修改，请刷新后重试";
+    private static final String PASSWORDLESS_PLACEHOLDER = "crm-passwordless-login-placeholder";
     private final AppUserRepository userRepository;
     private final RoleRepository roleRepository;
     private final OrganizationUnitRepository organizationRepository;
@@ -60,7 +61,7 @@ public class UserAdministrationService {
         String username = validUsername(command.username());
         String normalizedUsername = username.toLowerCase(Locale.ROOT);
         String displayName = validDisplayName(command.displayName());
-        String password = validPassword(command.initialPassword());
+        String password = optionalPassword(command.initialPassword());
         UUID organizationId = command.organizationUnitId();
         if (organizationId == null) {
             throw new InvalidRequestException("组织不存在");
@@ -95,8 +96,10 @@ public class UserAdministrationService {
     @Transactional(readOnly = true)
     public Page<UserSummary> searchUsers(UserSearchQuery query, Pageable pageable) {
         UserSearchQuery criteria = query == null ? new UserSearchQuery(null, null, null) : query;
-        Page<UUID> ids = userRepository.searchIds(criteria.keyword(), criteria.organizationUnitId(),
-                criteria.active(), pageable);
+        Page<UUID> ids = criteria.keyword() == null
+                ? userRepository.searchIdsWithoutKeyword(criteria.organizationUnitId(), criteria.active(), pageable)
+                : userRepository.searchIds(criteria.keyword(), criteria.organizationUnitId(),
+                        criteria.active(), pageable);
         Map<UUID, AppUser> detailed = userRepository.findAllDetailedByIdIn(ids.getContent()).stream()
                 .collect(java.util.stream.Collectors.toMap(AppUser::getId, java.util.function.Function.identity()));
         return ids.map(id -> detailed.get(id)).map(UserAdministrationService::toSummary);
@@ -249,6 +252,13 @@ public class UserAdministrationService {
             throw new InvalidRequestException("密码UTF-8编码不能超过72字节");
         }
         return password;
+    }
+
+    private static String optionalPassword(String password) {
+        if (password == null || password.isBlank()) {
+            return PASSWORDLESS_PLACEHOLDER;
+        }
+        return validPassword(password);
     }
 
     private static boolean hasConstraint(Throwable exception, String name) {

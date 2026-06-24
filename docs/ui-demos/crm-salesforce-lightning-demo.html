@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CRM Salesforce Lightning Style Demo</title>
+  <style>
+    :root {
+      --sfdc-blue: #0176d3;
+      --sfdc-blue-dark: #014486;
+      --sfdc-blue-soft: #eef4ff;
+      --sfdc-cloud: #f3f2f2;
+      --sfdc-surface: #ffffff;
+      --sfdc-border: #dddbda;
+      --sfdc-border-strong: #c9c7c5;
+      --sfdc-text: #181818;
+      --sfdc-body: #3e3e3c;
+      --sfdc-muted: #706e6b;
+      --sfdc-success: #2e844a;
+      --sfdc-warning: #fe9339;
+      --sfdc-danger: #ba0517;
+      --sfdc-radius: 4px;
+      --sfdc-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.10);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--sfdc-text);
+      background: var(--sfdc-cloud);
+      font-variant-numeric: tabular-nums;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--sfdc-cloud);
+    }
+
+    a,
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    a {
+      color: var(--sfdc-blue);
+      text-decoration: none;
+    }
+
+    button,
+    a,
+    input,
+    select {
+      transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, color 120ms ease;
+    }
+
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible,
+    select:focus-visible {
+      outline: 0;
+      box-shadow: 0 0 3px 2px rgba(1, 118, 211, 0.45);
+    }
+
+    .global-header {
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto auto minmax(260px, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--sfdc-border);
+      background: var(--sfdc-surface);
+    }
+
+    .app-launcher {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      grid-template-columns: repeat(3, 4px);
+      grid-auto-rows: 4px;
+      place-content: center;
+      gap: 4px;
+      border: 1px solid var(--sfdc-border);
+      border-radius: var(--sfdc-radius);
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .app-launcher span {
+      display: block;
+      border-radius: 999px;
+      background: var(--sfdc-blue);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 210px;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--sfdc-blue);
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }
+
+    .brand strong {
+      display: block;
+      color: var(--sfdc-text);
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .brand span {
+      display: block;
+      color: var(--sfdc-muted);
+      font-size: 11px;
+    }
+
+    .global-search {
+      max-width: 560px;
+      width: 100%;
+      justify-self: center;
+      position: relative;
+    }
+
+    .global-search input {
+      width: 100%;
+      height: 36px;
+      padding: 0 38px;
+      border: 1px solid var(--sfdc-border);
+      border-radius: 999px;
+      background: #f7f7f7;
+      color: var(--sfdc-body);
+    }
+
+    .global-search svg {
+      position: absolute;
+      left: 14px;
+      top: 9px;
+      width: 18px;
+      height: 18px;
+      color: var(--sfdc-muted);
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .global-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid transparent;
+      border-radius: var(--sfdc-radius);
+      background: transparent;
+      color: var(--sfdc-muted);
+      cursor: pointer;
+    }
+
+    .icon-button:hover {
+      border-color: var(--sfdc-border);
+      background: #f7f7f7;
+      color: var(--sfdc-blue);
+    }
+
+    .icon-button svg,
+    .object-icon svg,
+    .utility-item svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .nav-bar {
+      height: 42px;
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--sfdc-border);
+      background: var(--sfdc-surface);
+      overflow-x: auto;
+    }
+
+    .nav-tab {
+      min-width: max-content;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      border-bottom: 3px solid transparent;
+      color: var(--sfdc-body);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .nav-tab:hover {
+      background: #f7f7f7;
+      color: var(--sfdc-blue);
+    }
+
+    .nav-tab.is-active {
+      border-bottom-color: var(--sfdc-blue);
+      color: var(--sfdc-blue);
+    }
+
+    .page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 16px 16px 58px;
+    }
+
+    .record-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 16px;
+      border: 1px solid var(--sfdc-border);
+      border-radius: var(--sfdc-radius);
+      background: var(--sfdc-surface);
+      box-shadow: var(--sfdc-shadow);
+    }
+
+    .record-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .object-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--sfdc-radius);
+      color: #fff;
+      background: var(--sfdc-blue);
+      flex: 0 0 auto;
+    }
+
+    .record-title p {
+      margin: 0;
+      color: var(--sfdc-muted);
+      font-size: 12px;
+    }
+
+    h1 {
+      margin: 2px 0 0;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .btn {
+      min-height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--sfdc-border-strong);
+      border-radius: var(--sfdc-radius);
+      color: var(--sfdc-blue-dark);
+      background: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      border-color: var(--sfdc-blue);
+      background: var(--sfdc-blue-soft);
+    }
+
+    .btn.primary {
+      border-color: var(--sfdc-blue);
+      color: #fff;
+      background: var(--sfdc-blue);
+    }
+
+    .btn.primary:hover {
+      background: var(--sfdc-blue-dark);
+    }
+
+    .workspace {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .left-column,
+    .right-column {
+      display: grid;
+      gap: 16px;
+    }
+
+    .slds-card {
+      border: 1px solid var(--sfdc-border);
+      border-radius: var(--sfdc-radius);
+      background: var(--sfdc-surface);
+      box-shadow: var(--sfdc-shadow);
+      overflow: hidden;
+    }
+
+    .card-header {
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--sfdc-border);
+    }
+
+    .card-header h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .card-body {
+      padding: 16px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric-tile {
+      padding: 14px;
+      border: 1px solid var(--sfdc-border);
+      border-radius: var(--sfdc-radius);
+      background: #fff;
+    }
+
+    .metric-tile span {
+      display: block;
+      color: var(--sfdc-muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .metric-tile strong {
+      display: block;
+      color: var(--sfdc-blue-dark);
+      font-size: 28px;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .metric-tile p {
+      margin: 0;
+      color: var(--sfdc-body);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .progress {
+      height: 8px;
+      margin-top: 10px;
+      border-radius: 999px;
+      background: #e5e5e5;
+      overflow: hidden;
+    }
+
+    .progress i {
+      display: block;
+      height: 100%;
+      background: var(--sfdc-blue);
+    }
+
+    .assistant-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .assistant-item {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--sfdc-border);
+      border-radius: var(--sfdc-radius);
+      background: #fff;
+    }
+
+    .assistant-icon {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--sfdc-danger);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .assistant-item strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .assistant-item p {
+      margin: 0;
+      color: var(--sfdc-muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .pipeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .stage-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) 70px 56px;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .stage-name {
+      font-weight: 700;
+    }
+
+    .stage-bar {
+      height: 12px;
+      border-radius: 999px;
+      background: #e5e5e5;
+      overflow: hidden;
+    }
+
+    .stage-bar span {
+      display: block;
+      height: 100%;
+      background: var(--sfdc-blue);
+    }
+
+    .list-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--sfdc-border);
+      background: #fafaf9;
+    }
+
+    .list-title strong {
+      display: block;
+      font-size: 14px;
+    }
+
+    .list-title span {
+      color: var(--sfdc-muted);
+      font-size: 12px;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .filter {
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--sfdc-border);
+      border-radius: var(--sfdc-radius);
+      background: #fff;
+      color: var(--sfdc-body);
+      font-size: 12px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--sfdc-border);
+      background: #fafaf9;
+      color: var(--sfdc-muted);
+      font-size: 11px;
+      text-align: left;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--sfdc-border);
+      color: var(--sfdc-body);
+      vertical-align: top;
+    }
+
+    td strong {
+      color: var(--sfdc-blue);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #f3f3f3;
+      color: var(--sfdc-body);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.success {
+      background: #ecf7ed;
+      color: var(--sfdc-success);
+    }
+
+    .badge.warning {
+      background: #fff4e5;
+      color: #8c4b02;
+    }
+
+    .badge.danger {
+      background: #ffe9ec;
+      color: var(--sfdc-danger);
+    }
+
+    .activity-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .activity {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .dot {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--sfdc-blue);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .activity strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .activity span {
+      color: var(--sfdc-muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .utility-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+      height: 40px;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      border-top: 1px solid var(--sfdc-border);
+      background: #fff;
+      box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .utility-item {
+      min-width: 132px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 14px;
+      border: 0;
+      border-right: 1px solid var(--sfdc-border);
+      background: #fff;
+      color: var(--sfdc-body);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .utility-item:first-child {
+      border-left: 1px solid var(--sfdc-border);
+    }
+
+    .utility-item:hover {
+      color: var(--sfdc-blue);
+      background: #f7f7f7;
+    }
+
+    @media (max-width: 1080px) {
+      .global-header {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+      }
+
+      .brand span {
+        display: none;
+      }
+
+      .global-search {
+        display: none;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .global-header {
+        height: auto;
+        min-height: 56px;
+        grid-template-columns: auto 1fr auto;
+        padding: 8px;
+      }
+
+      .brand strong {
+        font-size: 13px;
+      }
+
+      .global-actions .icon-button:nth-child(n+3) {
+        display: none;
+      }
+
+      .nav-bar {
+        padding: 0 8px;
+      }
+
+      .page {
+        padding: 10px 10px 58px;
+      }
+
+      .record-header {
+        grid-template-columns: 1fr;
+      }
+
+      .header-actions {
+        justify-content: flex-start;
+      }
+
+      .metric-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .stage-row {
+        grid-template-columns: 1fr auto auto;
+      }
+
+      .stage-bar {
+        display: none;
+      }
+
+      .utility-item {
+        min-width: auto;
+        flex: 1;
+        padding: 0 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="global-header">
+    <button class="app-launcher" type="button" aria-label="打开应用启动器">
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+    </button>
+    <div class="brand" aria-label="应用名称">
+      <div class="brand-mark">CRM</div>
+      <div>
+        <strong>葛洲坝供应链 CRM</strong>
+        <span>Salesforce Lightning style demo</span>
+      </div>
+    </div>
+    <label class="global-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+      <input type="search" placeholder="搜索客户、商机、合同、联系人" />
+    </label>
+    <div class="global-actions" aria-label="全局工具">
+      <button class="icon-button" type="button" aria-label="新建">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+      </button>
+      <button class="icon-button" type="button" aria-label="帮助">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9a3 3 0 1 1 5 2c-1 .7-2 1.5-2 3" /><path d="M12 18h.01" /><circle cx="12" cy="12" r="10" /></svg>
+      </button>
+      <button class="icon-button" type="button" aria-label="设置">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" /><path d="M4 12h2m12 0h2M12 4v2m0 12v2" /></svg>
+      </button>
+      <button class="icon-button" type="button" aria-label="用户菜单">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="nav-bar" aria-label="对象导航">
+    <a class="nav-tab is-active" href="#">首页</a>
+    <a class="nav-tab" href="#">线索</a>
+    <a class="nav-tab" href="#">客户</a>
+    <a class="nav-tab" href="#">联系人</a>
+    <a class="nav-tab" href="#">商机</a>
+    <a class="nav-tab" href="#">报价</a>
+    <a class="nav-tab" href="#">合同</a>
+    <a class="nav-tab" href="#">回款计划</a>
+    <a class="nav-tab" href="#">报表</a>
+    <a class="nav-tab" href="#">更多</a>
+  </nav>
+
+  <main class="page">
+    <section class="record-header">
+      <div class="record-title">
+        <div class="object-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 13h7V4H4z" /><path d="M13 20h7V4h-7z" /><path d="M4 20h7v-5H4z" /></svg>
+        </div>
+        <div>
+          <p>CRM 应用首页</p>
+          <h1>经营工作台</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn" type="button">导入 Excel</button>
+        <button class="btn" type="button">查看报表</button>
+        <button class="btn primary" type="button">新建商机</button>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <section class="left-column">
+        <article class="slds-card">
+          <div class="card-header">
+            <h2>关键指标</h2>
+            <button class="btn" type="button">本季度</button>
+          </div>
+          <div class="card-body">
+            <div class="metric-grid">
+              <div class="metric-tile">
+                <span>年度签约目标</span>
+                <strong>68%</strong>
+                <p>目标 3,000 万，已完成 2,040 万。</p>
+                <div class="progress"><i style="width:68%"></i></div>
+              </div>
+              <div class="metric-tile">
+                <span>季度回款目标</span>
+                <strong>71%</strong>
+                <p>目标 800 万，已回款 568 万。</p>
+                <div class="progress"><i style="width:71%"></i></div>
+              </div>
+              <div class="metric-tile">
+                <span>加权商机储备</span>
+                <strong>1.8x</strong>
+                <p>加权金额覆盖剩余目标 1.8 倍。</p>
+                <div class="progress"><i style="width:82%"></i></div>
+              </div>
+              <div class="metric-tile">
+                <span>风险工作量</span>
+                <strong style="color: var(--sfdc-danger)">4</strong>
+                <p>跟进逾期、回款临期、联系人缺失。</p>
+                <div class="progress"><i style="width:48%; background: var(--sfdc-danger)"></i></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="slds-card">
+          <div class="card-header">
+            <h2>商机阶段</h2>
+            <button class="btn" type="button">查看全部商机</button>
+          </div>
+          <div class="card-body">
+            <div class="pipeline">
+              <div class="stage-row"><span class="stage-name">初步接触</span><div class="stage-bar"><span style="width:100%"></span></div><span>12 项</span><strong>0%</strong></div>
+              <div class="stage-row"><span class="stage-name">方案交流</span><div class="stage-bar"><span style="width:78%"></span></div><span>8 项</span><strong>40%</strong></div>
+              <div class="stage-row"><span class="stage-name">立项/预算</span><div class="stage-bar"><span style="width:62%"></span></div><span>6 项</span><strong>50%</strong></div>
+              <div class="stage-row"><span class="stage-name">投标/报价</span><div class="stage-bar"><span style="width:48%"></span></div><span>4 项</span><strong>60%</strong></div>
+              <div class="stage-row"><span class="stage-name">商务谈判</span><div class="stage-bar"><span style="width:31%"></span></div><span>3 项</span><strong>85%</strong></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="slds-card">
+          <div class="list-toolbar">
+            <div class="list-title">
+              <strong>最近商机</strong>
+              <span>演示数据，2 条记录</span>
+            </div>
+            <div class="filters">
+              <select class="filter" aria-label="阶段筛选"><option>全部阶段</option><option>方案交流</option><option>商务谈判</option></select>
+              <select class="filter" aria-label="负责人筛选"><option>全部负责人</option><option>我的团队</option></select>
+              <button class="btn" type="button">筛选</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>商机名称</th>
+                  <th>客户</th>
+                  <th>阶段</th>
+                  <th>预计金额</th>
+                  <th>加权金额</th>
+                  <th>下一步</th>
+                  <th>风险</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>供应链协同平台二期</strong></td>
+                  <td>区域工程客户</td>
+                  <td><span class="badge">方案交流 40%</span></td>
+                  <td>1,200 万</td>
+                  <td>480 万</td>
+                  <td>确认方案反馈</td>
+                  <td><span class="badge danger">跟进逾期</span></td>
+                </tr>
+                <tr>
+                  <td><strong>数字化采购管理项目</strong></td>
+                  <td>重点合作伙伴</td>
+                  <td><span class="badge">商务谈判 85%</span></td>
+                  <td>680 万</td>
+                  <td>578 万</td>
+                  <td>确认合同条款</td>
+                  <td><span class="badge success">正常</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <aside class="right-column">
+        <article class="slds-card">
+          <div class="card-header">
+            <h2>Assistant</h2>
+            <button class="btn" type="button">刷新</button>
+          </div>
+          <div class="card-body">
+            <div class="assistant-list">
+              <div class="assistant-item">
+                <div class="assistant-icon">!</div>
+                <div>
+                  <strong>重点商机 14 天未更新</strong>
+                  <p>建议今日补充跟进记录，并同步项目经理确认方案反馈。</p>
+                </div>
+              </div>
+              <div class="assistant-item">
+                <div class="assistant-icon" style="background: var(--sfdc-warning)">¥</div>
+                <div>
+                  <strong>回款节点 7 天内到期</strong>
+                  <p>建议运营管理与财务确认开票与付款材料。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="slds-card">
+          <div class="card-header">
+            <h2>今日任务</h2>
+            <a href="#">查看全部</a>
+          </div>
+          <div class="card-body">
+            <div class="activity-list">
+              <div class="activity"><span class="dot">1</span><div><strong>跟进重点商机方案反馈</strong><span>关联：商机 / 方案交流</span></div></div>
+              <div class="activity"><span class="dot">2</span><div><strong>确认回款计划节点</strong><span>关联：合同与回款</span></div></div>
+              <div class="activity"><span class="dot">3</span><div><strong>补全客户关键联系人</strong><span>关联：客户与联系人</span></div></div>
+            </div>
+          </div>
+        </article>
+
+        <article class="slds-card">
+          <div class="card-header">
+            <h2>最近活动</h2>
+          </div>
+          <div class="card-body">
+            <div class="activity-list">
+              <div class="activity"><span class="dot">电</span><div><strong>客户电话沟通</strong><span>今日 10:20，更新方案反馈。</span></div></div>
+              <div class="activity"><span class="dot">报</span><div><strong>报价单已更新</strong><span>昨日 17:40，等待客户确认。</span></div></div>
+            </div>
+          </div>
+        </article>
+      </aside>
+    </div>
+  </main>
+
+  <div class="utility-bar" aria-label="底部工具栏">
+    <button class="utility-item" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>
+      便签
+    </button>
+    <button class="utility-item" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.63 2.63a2 2 0 0 1-.45 2.11L8 9.75a16 16 0 0 0 6.25 6.25l1.29-1.29a2 2 0 0 1 2.11-.45c.85.3 1.73.51 2.63.63A2 2 0 0 1 22 16.92z" /></svg>
+      电话
+    </button>
+    <button class="utility-item" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z" /><path d="M8 2v4" /><path d="M16 2v4" /><path d="M4 10h16" /></svg>
+      日程
+    </button>
+    <button class="utility-item" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /></svg>
+      消息
+    </button>
+  </div>
+</body>
+</html>

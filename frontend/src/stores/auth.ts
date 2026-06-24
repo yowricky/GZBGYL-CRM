@@ -24,7 +24,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async login(username: string, password: string) {
+    async login(username: string, password = '') {
       await authApi.csrf()
       await authApi.login(username, password)
       await authApi.csrf()
@@ -32,8 +32,12 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async logout() {
-      await authApi.csrf()
-      await authApi.logout()
+      try {
+        await authApi.csrf()
+        await authApi.logout()
+      } catch {
+        // Local sign-out should still proceed when the server session has already expired.
+      }
       this.user = null
       this.restored = true
     },

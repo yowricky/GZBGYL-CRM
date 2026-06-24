@@ -115,6 +115,21 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
     }
 
     @Test
+    void passwordlessLoginPersistsSessionForActiveUsers() throws Exception {
+        UUID userId = insertUser("Alice", "correct horse battery", true, "SALES");
+
+        Cookie session = login("  ALICE  ", "")
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().exists("SESSION"))
+                .andReturn().getResponse().getCookie("SESSION");
+
+        mvc.perform(get("/api/auth/me").cookie(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.username").value("Alice"));
+    }
+
+    @Test
     void badPasswordAndDisabledUserReturnSameStableError() throws Exception {
         insertUser("active", "correct horse battery", true, "SALES");
         insertUser("disabled", "correct horse battery", false, "SALES");
@@ -205,7 +220,7 @@ class AuthenticationControllerTest extends PostgresRedisIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.fieldErrors.username").exists())
-                .andExpect(jsonPath("$.fieldErrors.password").exists());
+                .andExpect(jsonPath("$.fieldErrors.password").doesNotExist());
         mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{not-json"))
                 .andExpect(status().isBadRequest())

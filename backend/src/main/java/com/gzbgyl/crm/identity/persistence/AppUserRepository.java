@@ -27,8 +27,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
             select user.id from AppUser user
             where (:organizationUnitId is null or user.organizationUnitId = :organizationUnitId)
               and (:active is null or user.active = :active)
-              and (:keyword is null
-                   or lower(user.username) like lower(concat('%', :keyword, '%'))
+              and (lower(user.username) like lower(concat('%', :keyword, '%'))
                    or lower(user.displayName) like lower(concat('%', :keyword, '%')))
             """)
     Page<UUID> searchIds(
@@ -37,6 +36,23 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
             @Param("active") Boolean active,
             Pageable pageable);
 
+    @Query("""
+            select user.id from AppUser user
+            where (:organizationUnitId is null or user.organizationUnitId = :organizationUnitId)
+              and (:active is null or user.active = :active)
+            """)
+    Page<UUID> searchIdsWithoutKeyword(
+            @Param("organizationUnitId") UUID organizationUnitId,
+            @Param("active") Boolean active,
+            Pageable pageable);
+
     @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     List<AppUser> findAllDetailedByIdIn(Collection<UUID> ids);
+
+    @Query("""
+            select user.id from AppUser user
+            join user.roles role
+            where role.id = :roleId
+            """)
+    List<UUID> findIdsByRoleId(@Param("roleId") UUID roleId);
 }
